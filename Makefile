@@ -77,12 +77,13 @@ build/bootrom.c.obj: pico-sdk-comps/bootrom.c pico-sdk-comps/bootrom.h | build
 		-c "$<" \
 		-o "$@"
 
-build/main.o: main.swift | build
+build/main.o: main.swift MMIOVolatile/module.modulemap MMIOVolatile/MMIOVolatile.h | build
 	"${SWIFTC}" \
 		-O -wmo \
 		-enable-experimental-feature Embedded \
 		-target armv6m-none-none-eabi \
 		-Xfrontend -function-sections \
+		-I MMIOVolatile \
 		-parse-as-library \
 		-emit-object \
 		"$<" \

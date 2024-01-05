@@ -1,3 +1,5 @@
+import MMIOVolatile
+
 @_cdecl("main")
 func main() -> CInt {
     while true {
