@@ -1,5 +1,4 @@
 CLANG=/usr/local/LLVMEmbeddedToolchainForArm-14.0.0/bin/clang
-SYSROOT=/usr/local/LLVMEmbeddedToolchainForArm-14.0.0/lib/clang-runtimes/armv6m_soft_nofp
 OBJCOPY=arm-none-eabi-objcopy
 PYTHON3=/usr/bin/python3
 SWIFTC=/usr/bin/swiftc
@@ -63,12 +62,11 @@ build/crt0.S.obj: pico-sdk-comps/crt0.S | build
 		-c "$<" \
 		-o "$@"
 
-build/bootrom.c.obj: pico-sdk-comps/bootrom.c | build
+build/bootrom.c.obj: pico-sdk-comps/bootrom.c pico-sdk-comps/bootrom.h | build
 	"${CLANG}" \
 		--target=armv6m-none-eabi \
 		-mfloat-abi=soft \
 		-march=armv6m \
-		--sysroot "${SYSROOT}" \
 		-O3 \
 		-DNDEBUG \
 		-ffunction-sections \
