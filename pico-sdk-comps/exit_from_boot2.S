@@ -7,7 +7,7 @@
 #ifndef _BOOT2_HELPER_EXIT_FROM_BOOT2
 #define _BOOT2_HELPER_EXIT_FROM_BOOT2
 
-#include "hardware/regs/m0plus.h"
+#include "m0plus.h"
 
 // If entered from the bootrom, lr (which we earlier pushed) will be 0,
 // and we vector through the table at the start of the main flash image.

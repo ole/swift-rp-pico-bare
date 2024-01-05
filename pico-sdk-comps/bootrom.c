@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "pico/bootrom.h"
+#include "bootrom.h"
 
 /// \tag::table_lookup[]
 

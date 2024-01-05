@@ -21,6 +21,10 @@
     __stack (== StackTop)
 */
 
+/* Why do we need this? */
+SIO_BASE = 0xd0000000;
+PPB_BASE = 0xe0000000;
+
 MEMORY
 {
     FLASH(rx) : ORIGIN = 0x10000000, LENGTH = 2048k

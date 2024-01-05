@@ -16,9 +16,18 @@
 //                4-byte checksum. Therefore code size cannot exceed 252 bytes.
 // ----------------------------------------------------------------------------
 
-#include "pico/asm_helper.S"
-#include "hardware/regs/addressmap.h"
-#include "hardware/regs/ssi.h"
+#include "asm_helper.S"
+#include "addressmap.h"
+#include "hardware_regs-ssi.h"
+
+// platform.defs.h
+#ifndef _u
+#ifdef __ASSEMBLER__
+#define _u(x) x
+#else
+#define _u(x) x ## u
+#endif
+#endif
 
 pico_default_asm_setup
 
@@ -90,7 +99,7 @@ regular_func _stage2_boot
 // and the data will be returned to the bus.
 
 // Pull in standard exit routine
-#include "boot2_helpers/exit_from_boot2.S"
+#include "exit_from_boot2.S"
 
 .global literals
 literals:

@@ -9,7 +9,11 @@
 
 // NOTE THIS HEADER IS INCLUDED FROM ASSEMBLY
 
-#include "pico.h"
+// pico_base/include/pico.h
+// We may be included by assembly which cant include <cdefs.h>
+#define	__PICO_STRING(x)	#x
+#define	__PICO_XSTRING(x)	__PICO_STRING(x)
+#define __PICO_CONCAT1(x, y) x ## y
 
 // PICO_CONFIG: PICO_BUILD_BOOT_STAGE2_NAME, The name of the boot stage 2 if selected by the build, group=boot_stage2
 #ifdef PICO_BUILD_BOOT_STAGE2_NAME

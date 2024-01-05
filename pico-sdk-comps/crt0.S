@@ -4,13 +4,47 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "pico.h"
-#include "pico/asm_helper.S"
+#include "asm_helper.S"
 
-#include "hardware/regs/m0plus.h"
-#include "hardware/regs/addressmap.h"
-#include "hardware/regs/sio.h"
-#include "pico/binary_info/defs.h"
+// platform.defs.h
+#ifndef _u
+#ifdef __ASSEMBLER__
+#define _u(x) x
+#else
+#define _u(x) x ## u
+#endif
+#endif
+
+// platform.h
+// PICO_CONFIG: PICO_STACK_SIZE, Stack Size, min=0x100, default=0x800, advanced=true, group=pico_platform
+#ifndef PICO_STACK_SIZE
+#define PICO_STACK_SIZE _u(0x800)
+#endif
+// PICO_CONFIG: PICO_HEAP_SIZE, Heap size to reserve, min=0x100, default=0x800, advanced=true, group=pico_platform
+#ifndef PICO_HEAP_SIZE
+#define PICO_HEAP_SIZE _u(0x800)
+#endif
+
+// m0plus.h
+// =============================================================================
+// Register    : M0PLUS_VTOR
+// Description : The VTOR holds the vector table offset address.
+#define M0PLUS_VTOR_OFFSET _u(0x0000ed08)
+#define M0PLUS_VTOR_BITS   _u(0xffffff00)
+#define M0PLUS_VTOR_RESET  _u(0x00000000)
+
+// sio.h
+// =============================================================================
+// Register    : SIO_CPUID
+// Description : Processor core identifier
+//               Value is 0 when read from processor core 0, and 1 when read
+//               from processor core 1.
+#define SIO_CPUID_OFFSET _u(0x00000000)
+#define SIO_CPUID_BITS   _u(0xffffffff)
+#define SIO_CPUID_RESET  "-"
+#define SIO_CPUID_MSB    _u(31)
+#define SIO_CPUID_LSB    _u(0)
+#define SIO_CPUID_ACCESS "RO"
 
 #ifdef NDEBUG
 #ifndef COLLAPSE_IRQS
@@ -152,24 +186,6 @@ __unhandled_user_irq:
 .global unhandled_user_irq_num_in_r0
 unhandled_user_irq_num_in_r0:
     bkpt #0
-
-// ----------------------------------------------------------------------------
-
-.section .binary_info_header, "a"
-
-// Header must be in first 256 bytes of main image (i.e. excluding flash boot2).
-// For flash builds we put it immediately after vector table; for NO_FLASH the
-// vectors are at a +0x100 offset because the bootrom enters RAM images directly
-// at their lowest address, so we put the header in the VTOR alignment hole.
-
-#if !PICO_NO_BINARY_INFO
-binary_info_header:
-.word BINARY_INFO_MARKER_START
-.word __binary_info_start
-.word __binary_info_end
-.word data_cpy_table // we may need to decode pointers that are in RAM at runtime.
-.word BINARY_INFO_MARKER_END
-#endif
 
 // ----------------------------------------------------------------------------
 

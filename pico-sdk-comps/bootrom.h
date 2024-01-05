@@ -7,7 +7,14 @@
 #ifndef _PICO_BOOTROM_H
 #define _PICO_BOOTROM_H
 
-#include "pico.h"
+#include <inttypes.h>
+#include <stdbool.h>
+
+// platform.h
+#ifndef __always_inline
+#define __always_inline __attribute__((__always_inline__))
+#endif
+#define __force_inline __always_inline
 
 /** \file bootrom.h
  * \defgroup pico_bootrom pico_bootrom
