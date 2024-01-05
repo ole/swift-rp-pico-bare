@@ -19,7 +19,6 @@ build/compile_time_choice.S.obj: pico-sdk-comps/compile_time_choice.S | build
 		--target=armv6m-none-eabi \
 		-mfloat-abi=soft \
 		-march=armv6m \
-		--sysroot "${SYSROOT}" \
 		-O3 \
 		-DNDEBUG \
 		-MD \
@@ -33,7 +32,6 @@ build/bs2_default.elf: build/compile_time_choice.S.obj | build
 		--target=armv6m-none-eabi \
 		-mfloat-abi=soft \
 		-march=armv6m \
-		--sysroot "${SYSROOT}" \
 		-O3 \
 		-DNDEBUG \
 		-Wl,--build-id=none \
@@ -58,7 +56,6 @@ build/crt0.S.obj: pico-sdk-comps/crt0.S | build
 		--target=armv6m-none-eabi \
 		-mfloat-abi=soft \
 		-march=armv6m \
-		--sysroot "${SYSROOT}" \
 		-O3 \
 		-DNDEBUG \
 		-ffunction-sections \
