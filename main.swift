@@ -31,22 +31,36 @@ func runtimeInit() {
 
 @_cdecl("main")
 func main() -> CInt {
-    let led = 25
-    gpioInit(pin: led)
-    gpioSetDirection(pin: led, out: true)
+    let onboardLED = 25
+    gpioInit(pin: onboardLED)
+    gpioSetDirection(pin: onboardLED, out: true)
+    gpioSet(pin: onboardLED, high: false)
+
+    let externalLED = 17
+    gpioInit(pin: externalLED)
+    gpioSetDirection(pin: externalLED, out: true)
+    gpioSet(pin: externalLED, high: false)
+
+    let button = 16
+    gpioInit(pin: button)
+    gpioSetDirection(pin: button, out: false)
+    gpioPullUp(pin: button)
 
     var isOn = false
-    gpioSet(pin: led, high: isOn)
     var counter: Int32 = 0
     while true {
         if counter == 0 {
             isOn.toggle()
-            gpioSet(pin: led, high: isOn)
+            gpioSet(pin: onboardLED, high: isOn)
         }
         counter &+= 1
         if counter > 0x10000 {
             counter = 0
         }
+
+        // LED follows button presses
+        let isButtonPressed = !gpioGet(pin: button)
+        gpioSet(pin: externalLED, high: isButtonPressed)
     }
 }
 
@@ -84,11 +98,12 @@ enum GPIOFunction: Int {
 
 // SIO = the RP2040’s single-cycle I/O block.
 // Reference documentation: https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf#tab-registerlist_sio
-let SIO_BASE: UInt = 0xd0000000
-let SIO_GPIO_OUT_SET_OFFSET: UInt = 0x00000014
-let SIO_GPIO_OUT_CLR_OFFSET: UInt = 0x00000018
-let SIO_GPIO_OUT_ENABLE_SET_OFFSET: UInt = 0x00000024
-let SIO_GPIO_OUT_ENABLE_CLR_OFFSET: UInt = 0x00000028
+let SIO_BASE: UInt32 = 0xd0000000
+let SIO_GPIO_IN_OFFSET: UInt32 = 0x00000004
+let SIO_GPIO_OUT_SET_OFFSET: UInt32 = 0x00000014
+let SIO_GPIO_OUT_CLR_OFFSET: UInt32 = 0x00000018
+let SIO_GPIO_OUT_ENABLE_SET_OFFSET: UInt32 = 0x00000024
+let SIO_GPIO_OUT_ENABLE_CLR_OFFSET: UInt32 = 0x00000028
 
 // Reference to datasheet: https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf#tab-registerlist_pads_bank0
 let PADS_BANK0_BASE: UInt32 = 0x4001c000
@@ -97,6 +112,10 @@ let PADS_BANK0_GPIO0_BITS: UInt32 = 0x000000ff
 let PADS_BANK0_GPIO0_RESET: UInt32 = 0x00000056
 let PADS_BANK0_GPIO0_IE_BITS: UInt32 = 0x00000040
 let PADS_BANK0_GPIO0_OD_BITS: UInt32 = 0x00000080
+let PADS_BANK0_GPIO0_PUE_BITS: UInt32 = 0x00000008
+let PADS_BANK0_GPIO0_PUE_LSB: UInt32 = 3
+let PADS_BANK0_GPIO0_PDE_BITS: UInt32 = 0x00000004
+let PADS_BANK0_GPIO0_PDE_LSB: UInt32 = 2
 
 let IO_BANK0_BASE: UInt32 = 0x40014000
 let IO_BANK0_GPIO0_CTRL_OFFSET: UInt32 = 0x00000004
@@ -129,17 +148,50 @@ func gpioSetDirection(pin: Int, out: Bool) {
 
 func gpioSetDirectionOutMasked(mask: UInt32) {
     // sio_hw->gpio_oe_set = mask;
-    let ptr = UnsafeMutablePointer<UInt32>(bitPattern: SIO_BASE + SIO_GPIO_OUT_ENABLE_SET_OFFSET)!
+    let ptr = UnsafeMutablePointer<UInt32>(bitPattern: UInt(SIO_BASE + SIO_GPIO_OUT_ENABLE_SET_OFFSET))!
     mmio_volatile_store_uint32_t(ptr, mask)
 }
 
 func gpioSetDirectionInMasked(mask: UInt32) {
     // sio_hw->gpio_oe_clr = mask;
-    let ptr = UnsafeMutablePointer<UInt32>(bitPattern: SIO_BASE + SIO_GPIO_OUT_ENABLE_CLR_OFFSET)!
+    let ptr = UnsafeMutablePointer<UInt32>(bitPattern: UInt(SIO_BASE + SIO_GPIO_OUT_ENABLE_CLR_OFFSET))!
     mmio_volatile_store_uint32_t(ptr, mask)
 }
 
-public func gpioSet(pin: Int, high: Bool) {
+/// Set the specified GPIO to be pulled up.
+func gpioPullUp(pin: Int) {
+    gpioSetPulls(pin: pin, up: true, down: false)
+}
+
+func gpioPullDown(pin: Int) {
+    gpioSetPulls(pin: pin, up: false, down: true)
+}
+
+/// Select up and down pulls on specific GPIO.
+///
+/// On RP2040, setting both pulls enables a "bus keep" function,
+/// i.e. weak pull to whatever is current high/low state of GPIO.
+func gpioSetPulls(pin: Int, up: Bool, down: Bool) {
+    let padsBank = UnsafeMutablePointer<UInt32>(bitPattern: UInt(PADS_BANK0_BASE) + UInt(PADS_BANK0_GPIO0_OFFSET) + (UInt(pin) * UInt(MemoryLayout<UInt32>.stride)))!
+    let value: UInt32 = (up ? 1 : 0) << PADS_BANK0_GPIO0_PUE_LSB
+        | (down ? 1 : 0) << PADS_BANK0_GPIO0_PDE_LSB
+    let mask = PADS_BANK0_GPIO0_PUE_BITS | PADS_BANK0_GPIO0_PDE_BITS
+    hwWriteMasked(address: padsBank, values: value, mask: mask)
+}
+
+// Get the value of a single GPIO
+func gpioGet(pin: Int) -> Bool {
+    let mask: UInt32 = 1 << pin
+    // sio_hw->gpio_in
+    let ptr = UnsafeMutablePointer<UInt32>(bitPattern: UInt(SIO_BASE + SIO_GPIO_IN_OFFSET))!
+    let gpioIn = mmio_volatile_load_uint32_t(ptr)
+    let isOn = (gpioIn & mask) != 0
+    return isOn
+}
+
+// bool gpio_get(uint gpio);
+
+func gpioSet(pin: Int, high: Bool) {
     let mask: UInt32 = 1 << pin
     if high {
         gpioSetMasked(mask: mask)
@@ -150,13 +202,13 @@ public func gpioSet(pin: Int, high: Bool) {
 
 func gpioSetMasked(mask: UInt32) {
     // sio_hw->gpio_set = mask;
-    let ptr = UnsafeMutablePointer<UInt32>(bitPattern: SIO_BASE + SIO_GPIO_OUT_SET_OFFSET)!
+    let ptr = UnsafeMutablePointer<UInt32>(bitPattern: UInt(SIO_BASE + SIO_GPIO_OUT_SET_OFFSET))!
     mmio_volatile_store_uint32_t(ptr, mask)
 }
 
 func gpioClearMasked(mask: UInt32) {
     // sio_hw->gpio_clr = mask;
-    let ptr = UnsafeMutablePointer<UInt32>(bitPattern: SIO_BASE + SIO_GPIO_OUT_CLR_OFFSET)!
+    let ptr = UnsafeMutablePointer<UInt32>(bitPattern: UInt(SIO_BASE + SIO_GPIO_OUT_CLR_OFFSET))!
     mmio_volatile_store_uint32_t(ptr, mask)
 }
 
