@@ -6,7 +6,7 @@ Build a Swift executable for the Raspberry Pi Pico without the Pico C SDK.
 
 1. Download and install the [ARM Embedded LLVM Toolchain](https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/) for your operating system. Tested with v17.0.1, newer versions will probably work too.
 
-2. Download and install a current [nightly Swift toolchain](https://www.swift.org/download/#snapshots) ("Trunk Development (main)"). Tested with 2023-12-07, newer versions will probably work too.
+2. Download and install a current [nightly Swift toolchain](https://www.swift.org/download/#snapshots) ("Trunk Development (main)"). Tested with 2024-01-04, newer versions will probably work too.
 
 3. Install Python 3 if you don’t have it.
 

@@ -1,7 +1,7 @@
 # Typical macOS config (adjust paths for your system)
 CLANG=/Applications/LLVMEmbeddedToolchainForArm-17.0.1-Darwin/bin/clang
 OBJCOPY=/Applications/LLVMEmbeddedToolchainForArm-17.0.1-Darwin/bin/llvm-objcopy
-SWIFTC=/Library/Developer/Toolchains/swift-DEVELOPMENT-SNAPSHOT-2023-12-07-a.xctoolchain/usr/bin/swiftc
+SWIFTC=/Library/Developer/Toolchains/swift-DEVELOPMENT-SNAPSHOT-2024-01-04-a.xctoolchain/usr/bin/swiftc
 PYTHON3=/usr/bin/python3
 
 # Typical Linux config (adjust for your system)
