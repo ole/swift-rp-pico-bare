@@ -1,7 +1,14 @@
-CLANG=/usr/local/LLVMEmbeddedToolchainForArm-14.0.0/bin/clang
-OBJCOPY=arm-none-eabi-objcopy
+# Typical macOS config (adjust paths for your system)
+CLANG=/Applications/LLVMEmbeddedToolchainForArm-17.0.1-Darwin/bin/clang
+OBJCOPY=/Applications/LLVMEmbeddedToolchainForArm-17.0.1-Darwin/bin/llvm-objcopy
+SWIFTC=/Library/Developer/Toolchains/swift-DEVELOPMENT-SNAPSHOT-2023-12-07-a.xctoolchain/usr/bin/swiftc
 PYTHON3=/usr/bin/python3
-SWIFTC=/usr/bin/swiftc
+
+# Typical Linux config (adjust for your system)
+# CLANG=/usr/local/LLVMEmbeddedToolchainForArm-17.0.1-Linux-AArch64/bin/clang
+# OBJCOPY=/usr/local/LLVMEmbeddedToolchainForArm-17.0.1-Linux-AArch64/bin/llvm-objcopy
+# SWIFTC=/usr/bin/swiftc
+# PYTHON3=/usr/bin/python3
 
 .PHONY: all clean
 
