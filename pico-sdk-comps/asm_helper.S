@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+// From platform.h
+#define WRAPPER_FUNC_NAME(x) __wrap_##x
+
 # note we don't do this by default in this file for backwards comaptibility with user code
 # that may include this file, but not use unified syntax. Note that this macro does equivalent
 # setup to the pico_default_asm macro for inline assembly in C code.
