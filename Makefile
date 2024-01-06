@@ -77,6 +77,18 @@ build/bootrom.c.obj: pico-sdk-comps/bootrom.c pico-sdk-comps/bootrom.h | build
 		-c "$<" \
 		-o "$@"
 
+build/pico_int64_ops_aeabi.S.obj: pico-sdk-comps/pico_int64_ops_aeabi.S | build
+	"${CLANG}" \
+		--target=armv6m-none-eabi \
+		-mfloat-abi=soft \
+		-march=armv6m \
+		-O3 \
+		-DNDEBUG \
+		-ffunction-sections \
+		-fdata-sections \
+		-c "$<" \
+		-o "$@"
+
 build/main.o: main.swift MMIOVolatile/module.modulemap MMIOVolatile/MMIOVolatile.h | build
 	"${SWIFTC}" \
 		-O -wmo \
@@ -89,7 +101,7 @@ build/main.o: main.swift MMIOVolatile/module.modulemap MMIOVolatile/MMIOVolatile
 		"$<" \
 		-o "$@"
 
-build/SwiftPico.elf: build/bs2_default_padded_checksummed.S build/crt0.S.obj build/bootrom.c.obj build/main.o | build
+build/SwiftPico.elf: build/bs2_default_padded_checksummed.S build/crt0.S.obj build/bootrom.c.obj build/pico_int64_ops_aeabi.S.obj build/main.o | build
 	"${CLANG}" \
 		--target=armv6m-none-eabi \
 		-mfloat-abi=soft \
@@ -100,5 +112,6 @@ build/SwiftPico.elf: build/bs2_default_padded_checksummed.S build/crt0.S.obj bui
 		-Xlinker --script=pico-sdk-comps/memmap_default.ld \
 		-Xlinker -z -Xlinker max-page-size=4096 \
 		-Xlinker --gc-sections \
+		-Xlinker --wrap=__aeabi_lmul \
 		$^ \
 		-o "$@"
