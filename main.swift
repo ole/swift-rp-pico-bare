@@ -34,9 +34,19 @@ func main() -> CInt {
     let led = 25
     gpioInit(pin: led)
     gpioSetDirection(pin: led, out: true)
-    gpioSet(pin: led, high: true)
 
+    var isOn = false
+    gpioSet(pin: led, high: isOn)
+    var counter: Int32 = 0
     while true {
+        if counter == 0 {
+            isOn.toggle()
+            gpioSet(pin: led, high: isOn)
+        }
+        counter &+= 1
+        if counter > 0x10000 {
+            counter = 0
+        }
     }
 }
 
