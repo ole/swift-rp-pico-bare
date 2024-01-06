@@ -1,5 +1,34 @@
 import MMIOVolatile
 
+/// crt0.S calls this immediately before main.
+@_cdecl("runtime_init")
+func runtimeInit() {
+    // Reset all peripherals to put system into a known state,
+    // - except for QSPI pads and the XIP IO bank, as this is fatal if running from flash
+    // - and the PLLs, as this is fatal if clock muxing has not been reset on this boot
+    // - and USB, syscfg, as this disturbs USB-to-SWD on core 1
+    resetBlock(bits: ~(
+            RESETS_RESET_IO_QSPI_BITS |
+            RESETS_RESET_PADS_QSPI_BITS |
+            RESETS_RESET_PLL_USB_BITS |
+            RESETS_RESET_USBCTRL_BITS |
+            RESETS_RESET_SYSCFG_BITS |
+            RESETS_RESET_PLL_SYS_BITS
+    ))
+
+    // Remove reset from peripherals which are clocked only by clk_sys and
+    // clk_ref. Other peripherals stay in reset until we've configured clocks.
+    unresetBlockAndWait(bits: RESETS_RESET_BITS & ~(
+            RESETS_RESET_ADC_BITS |
+            RESETS_RESET_RTC_BITS |
+            RESETS_RESET_SPI0_BITS |
+            RESETS_RESET_SPI1_BITS |
+            RESETS_RESET_UART0_BITS |
+            RESETS_RESET_UART1_BITS |
+            RESETS_RESET_USBCTRL_BITS
+    ))
+}
+
 @_cdecl("main")
 func main() -> CInt {
     let led = 25
@@ -43,6 +72,14 @@ enum GPIOFunction: Int {
     case NULL = 0x1f
 };
 
+// SIO = the RP2040’s single-cycle I/O block.
+// Reference documentation: https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf#tab-registerlist_sio
+let SIO_BASE: UInt = 0xd0000000
+let SIO_GPIO_OUT_SET_OFFSET: UInt = 0x00000014
+let SIO_GPIO_OUT_CLR_OFFSET: UInt = 0x00000018
+let SIO_GPIO_OUT_ENABLE_SET_OFFSET: UInt = 0x00000024
+let SIO_GPIO_OUT_ENABLE_CLR_OFFSET: UInt = 0x00000028
+
 // Reference to datasheet: https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf#tab-registerlist_pads_bank0
 let PADS_BANK0_BASE: UInt32 = 0x4001c000
 let PADS_BANK0_GPIO0_OFFSET: UInt32 = 0x00000004
@@ -70,33 +107,6 @@ func gpioSetFunction(pin: Int, _ function: GPIOFunction) {
     let controlReg = UnsafeMutablePointer<UInt32>(bitPattern: UInt(IO_BANK0_BASE) + UInt(pin * 2 * MemoryLayout<UInt32>.stride) + UInt(IO_BANK0_GPIO0_CTRL_OFFSET))!
     mmio_volatile_store_uint32_t(controlReg, UInt32(function.rawValue) << IO_BANK0_GPIO0_CTRL_FUNCSEL_LSB)
 }
-
-/// Set new values for a sub-set of the bits in a HW register.
-/// 
-/// Sets destination bits to values specified in \p values, if and only if corresponding bit in \p write_mask is set.
-func hwWriteMasked(address: UnsafeMutablePointer<UInt32>, values: UInt32, mask writeMask: UInt32) {
-    hwXORBits(address: address, mask: (address.pointee ^ values) & writeMask)
-}
-
-// Register address offsets for atomic RMW aliases
-let REG_ALIAS_RW_BITS: UInt32 = 0x0000
-let REG_ALIAS_XOR_BITS: UInt32 = 0x1000
-let REG_ALIAS_SET_BITS: UInt32 = 0x2000
-let REG_ALIAS_CLR_BITS: UInt32 = 0x3000
-
-func hwXORBits(address: UnsafeMutablePointer<UInt32>, mask: UInt32) {
-    let rawPtr = UnsafeMutableRawPointer(address).advanced(by: Int(REG_ALIAS_XOR_BITS))
-    let ptr = rawPtr.assumingMemoryBound(to: UInt32.self)
-    mmio_volatile_store_uint32_t(ptr, mask)
-}
-
-// SIO = the RP2040’s single-cycle I/O block.
-// Reference documentation: https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf#tab-registerlist_sio
-let SIO_BASE: UInt = 0xd0000000
-let SIO_GPIO_OUT_SET_OFFSET: UInt = 0x00000014
-let SIO_GPIO_OUT_CLR_OFFSET: UInt = 0x00000018
-let SIO_GPIO_OUT_ENABLE_SET_OFFSET: UInt = 0x00000024
-let SIO_GPIO_OUT_ENABLE_CLR_OFFSET: UInt = 0x00000028
 
 func gpioSetDirection(pin: Int, out: Bool) {
     let mask: UInt32 = 1 << pin
@@ -137,5 +147,77 @@ func gpioSetMasked(mask: UInt32) {
 func gpioClearMasked(mask: UInt32) {
     // sio_hw->gpio_clr = mask;
     let ptr = UnsafeMutablePointer<UInt32>(bitPattern: SIO_BASE + SIO_GPIO_OUT_CLR_OFFSET)!
+    mmio_volatile_store_uint32_t(ptr, mask)
+}
+
+let RESETS_BASE: UInt32 = 0x4000c000
+let RESETS_RESET_OFFSET: UInt32 = 0x00000000
+let RESETS_RESET_DONE_OFFSET: UInt32 = 0x00000008
+let RESETS_RESET_BITS: UInt32 = 0x01ffffff
+let RESETS_RESET_ADC_BITS: UInt32 = 0x00000001
+let RESETS_RESET_IO_QSPI_BITS: UInt32 = 0x00000040
+let RESETS_RESET_PADS_QSPI_BITS: UInt32 = 0x00000200
+let RESETS_RESET_PLL_SYS_BITS: UInt32 = 0x00001000
+let RESETS_RESET_PLL_USB_BITS: UInt32 = 0x00002000
+let RESETS_RESET_RTC_BITS: UInt32 = 0x00008000
+let RESETS_RESET_SPI0_BITS: UInt32 = 0x00010000
+let RESETS_RESET_SPI1_BITS: UInt32 = 0x00020000
+let RESETS_RESET_SYSCFG_BITS: UInt32 = 0x00040000
+let RESETS_RESET_UART0_BITS: UInt32 = 0x00400000
+let RESETS_RESET_UART1_BITS: UInt32 = 0x00800000
+let RESETS_RESET_USBCTRL_BITS: UInt32 = 0x01000000
+
+/// Reset the specified HW blocks
+func resetBlock(bits: UInt32) {
+    let resets = UnsafeMutablePointer<UInt32>(bitPattern: UInt(RESETS_BASE + RESETS_RESET_OFFSET))!
+    hwSetBits(address: resets, mask: bits)
+}
+
+/// Bring the specified HW blocks out of reset
+func unresetBlock(bits: UInt32) {
+    let resets = UnsafeMutablePointer<UInt32>(bitPattern: UInt(RESETS_BASE + RESETS_RESET_OFFSET))!
+    hwClearBits(address: resets, mask: bits)
+}
+
+/// Bring the specified HW blocks out of reset and wait for completion
+func unresetBlockAndWait(bits: UInt32) {
+    unresetBlock(bits: bits)
+    let resetDone = UnsafeMutablePointer<UInt32>(bitPattern: UInt(RESETS_BASE + RESETS_RESET_DONE_OFFSET))!
+    while true {
+        let isResetDone = ~mmio_volatile_load_uint32_t(resetDone) & bits == 0
+        if isResetDone {
+            break
+        }
+    }
+}
+
+/// Set new values for a sub-set of the bits in a HW register.
+/// 
+/// Sets destination bits to values specified in \p values, if and only if corresponding bit in \p write_mask is set.
+func hwWriteMasked(address: UnsafeMutablePointer<UInt32>, values: UInt32, mask writeMask: UInt32) {
+    hwXORBits(address: address, mask: (address.pointee ^ values) & writeMask)
+}
+
+// Register address offsets for atomic RMW aliases
+let REG_ALIAS_RW_BITS: UInt32 = 0x0000
+let REG_ALIAS_XOR_BITS: UInt32 = 0x1000
+let REG_ALIAS_SET_BITS: UInt32 = 0x2000
+let REG_ALIAS_CLR_BITS: UInt32 = 0x3000
+
+func hwXORBits(address: UnsafeMutablePointer<UInt32>, mask: UInt32) {
+    let rawPtr = UnsafeMutableRawPointer(address).advanced(by: Int(REG_ALIAS_XOR_BITS))
+    let ptr = rawPtr.assumingMemoryBound(to: UInt32.self)
+    mmio_volatile_store_uint32_t(ptr, mask)
+}
+
+func hwSetBits(address: UnsafeMutablePointer<UInt32>, mask: UInt32) {
+    let rawPtr = UnsafeMutableRawPointer(address).advanced(by: Int(REG_ALIAS_SET_BITS))
+    let ptr = rawPtr.assumingMemoryBound(to: UInt32.self)
+    mmio_volatile_store_uint32_t(ptr, mask)
+}
+
+func hwClearBits(address: UnsafeMutablePointer<UInt32>, mask: UInt32) {
+    let rawPtr = UnsafeMutableRawPointer(address).advanced(by: Int(REG_ALIAS_CLR_BITS))
+    let ptr = rawPtr.assumingMemoryBound(to: UInt32.self)
     mmio_volatile_store_uint32_t(ptr, mask)
 }
