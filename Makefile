@@ -50,6 +50,18 @@ build/bs2_default_padded_checksummed.S: build/bs2_default.bin | build
 		"$<" \
 		"$@"
 
+build/bs2_default_padded_checksummed.S.obj: build/bs2_default_padded_checksummed.S | build
+	"${CLANG}" \
+		--target=armv6m-none-eabi \
+		-mfloat-abi=soft \
+		-march=armv6m \
+		-O3 \
+		-DNDEBUG \
+		-ffunction-sections \
+		-fdata-sections \
+		-c "$<" \
+		-o "$@"
+
 build/crt0.S.obj: pico-sdk-comps/crt0.S | build
 	"${CLANG}" \
 		--target=armv6m-none-eabi \
@@ -101,7 +113,7 @@ build/main.o: main.swift MMIOVolatile/module.modulemap MMIOVolatile/MMIOVolatile
 		"$<" \
 		-o "$@"
 
-build/SwiftPico.elf: build/bs2_default_padded_checksummed.S build/crt0.S.obj build/bootrom.c.obj build/pico_int64_ops_aeabi.S.obj build/main.o | build
+build/SwiftPico.elf: build/bs2_default_padded_checksummed.S.obj build/crt0.S.obj build/bootrom.c.obj build/pico_int64_ops_aeabi.S.obj build/main.o | build
 	"${CLANG}" \
 		--target=armv6m-none-eabi \
 		-mfloat-abi=soft \
