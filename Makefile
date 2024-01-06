@@ -110,6 +110,7 @@ build/pico_int64_ops_aeabi.S.obj: pico-sdk-comps/pico_int64_ops_aeabi.S | build
 
 build/main.o: main.swift MMIOVolatile/module.modulemap MMIOVolatile/MMIOVolatile.h | build
 	"${SWIFTC}" \
+		-O \
 		-wmo \
 		-enable-experimental-feature Embedded \
 		-target armv6m-none-none-eabi \

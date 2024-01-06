@@ -46,21 +46,18 @@ func main() -> CInt {
     gpioSetDirection(pin: button, out: false)
     gpioPullUp(pin: button)
 
-    var isOn = false
-    var counter: Int32 = 0
     while true {
-        if counter == 0 {
-            isOn.toggle()
-            gpioSet(pin: onboardLED, high: isOn)
-        }
-        counter &+= 1
-        if counter > 0x10000 {
-            counter = 0
-        }
+        // Blink
+        gpioSet(pin: onboardLED, high: true)
+        delayByCounting(to: 40_000)
 
-        // LED follows button presses
-        let isButtonPressed = !gpioGet(pin: button)
-        gpioSet(pin: externalLED, high: isButtonPressed)
+        // LED follows button press
+        gpioSet(pin: externalLED, high: !gpioGet(pin: button))
+
+        gpioSet(pin: onboardLED, high: false)
+        delayByCounting(to: 40_000)
+
+        gpioSet(pin: externalLED, high: !gpioGet(pin: button))
     }
 }
 
@@ -74,6 +71,23 @@ func _exit(_ status: CInt) {
     while true {
       // Infinite loop
     }
+}
+
+/// Artificial delay by counting in a loop.
+///
+/// We can delete this once we can talk to the timer peripheral.
+func delayByCounting(to limit: Int32) {
+    // Optimization barrier
+    @inline(never)
+    func increment(_ value: inout Int32) {
+        value &+= 1
+    }
+    
+    var counter: Int32 = 0
+    while counter < limit {
+        increment(&counter)
+    }
+    return
 }
 
 func gpioInit(pin: Int) {
