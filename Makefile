@@ -114,6 +114,8 @@ build/main.o: main.swift MMIOVolatile/module.modulemap MMIOVolatile/MMIOVolatile
 		-wmo \
 		-enable-experimental-feature Embedded \
 		-target armv6m-none-none-eabi \
+		-Xcc -mfloat-abi=soft \
+		-Xcc -march=armv6m \
 		-Xfrontend -function-sections \
 		-I MMIOVolatile \
 		-parse-as-library \
