@@ -5,8 +5,8 @@ SWIFTC=/Library/Developer/Toolchains/swift-DEVELOPMENT-SNAPSHOT-2024-01-04-a.xct
 PYTHON3=/usr/bin/python3
 
 # Typical Linux config (adjust for your system)
-# CLANG=/usr/local/LLVMEmbeddedToolchainForArm-17.0.1-Linux-AArch64/bin/clang
-# OBJCOPY=/usr/local/LLVMEmbeddedToolchainForArm-17.0.1-Linux-AArch64/bin/llvm-objcopy
+# CLANG=/usr/bin/clang
+# OBJCOPY=/usr/bin/objcopy
 # SWIFTC=/usr/bin/swiftc
 # PYTHON3=/usr/bin/python3
 

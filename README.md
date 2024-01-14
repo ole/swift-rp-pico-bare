@@ -1,10 +1,10 @@
 # ”Bare bare metal” Embedded Swift on the RP2040 (Raspberry Pi Pico)
 
-Build a Swift executable for the Raspberry Pi Pico without the Pico C SDK.
+Build a Swift executable for the Raspberry Pi Pico without the Pico C SDK. Tested on macOS (13 and 14) and Linux (Ubuntu 22.04).
 
 ## Installation
 
-1. Download and install the [ARM Embedded LLVM Toolchain](https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/) for your operating system. Tested with v17.0.1, newer versions will probably work too.
+1. If you're on macOS, download and install the [ARM Embedded LLVM Toolchain](https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/). Tested with v17.0.1, newer versions will probably work too. This isn’t necessary on Linux.
 
 2. Download and install a current [nightly Swift toolchain](https://www.swift.org/download/#snapshots) ("Trunk Development (main)"). Tested with 2024-01-04, newer versions will probably work too.
 

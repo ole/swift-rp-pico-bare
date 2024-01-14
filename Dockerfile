@@ -13,12 +13,6 @@ FROM swiftlang/swift:nightly-jammy
 
 # Install dependencies
 RUN apt -y update
-RUN apt -y install python3 make wget
-
-# Install ARM Embedded LLVM toolchain
-WORKDIR /usr/local
-RUN wget https://github.com/ARM-software/LLVM-embedded-toolchain-for-Arm/releases/download/release-17.0.1/LLVMEmbeddedToolchainForArm-17.0.1-Linux-AArch64.tar.xz
-RUN tar -xf LLVMEmbeddedToolchainForArm-17.0.1-Linux-AArch64.tar.xz
-RUN rm LLVMEmbeddedToolchainForArm-17.0.1-Linux-AArch64.tar.xz
+RUN apt -y install python3 make
 
 WORKDIR /
