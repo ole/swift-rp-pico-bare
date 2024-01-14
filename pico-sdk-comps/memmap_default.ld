@@ -25,16 +25,32 @@
 SIO_BASE = 0xd0000000;
 PPB_BASE = 0xe0000000;
 
+/**
+ Defines the memory map.
+ Documentation: https://ftp.gnu.org/old-gnu/Manuals/ld-2.9.1/html_chapter/ld_3.html#SEC16
+ */
 MEMORY
 {
     FLASH(rx) : ORIGIN = 0x10000000, LENGTH = 2048k
     RAM(rwx) : ORIGIN =  0x20000000, LENGTH = 256k
+    /* ??? What's the purpose of these? */
     SCRATCH_X(rwx) : ORIGIN = 0x20040000, LENGTH = 4k
     SCRATCH_Y(rwx) : ORIGIN = 0x20041000, LENGTH = 4k
 }
 
+/**
+ Sets the program entry point to this symbol (defined in crt0.S)
+ Documentation: https://ftp.gnu.org/old-gnu/Manuals/ld-2.9.1/html_chapter/ld_3.html#SEC24
+
+ Only relevant for the debugger because the boot2 stage will always start
+ executing at the start of .text.
+ */
 ENTRY(_entry_point)
 
+/**
+ Maps input sections to output sections incl. their exact location and order.
+ Documentation: https://ftp.gnu.org/old-gnu/Manuals/ld-2.9.1/html_chapter/ld_3.html#SEC17
+ */
 SECTIONS
 {
     /* Second stage bootloader is prepended to the image. It must be 256 bytes big
@@ -98,11 +114,16 @@ SECTIONS
         . = ALIGN(4);
     } > FLASH
 
+    /* ARM exception table */
     .ARM.extab :
     {
         *(.ARM.extab* .gnu.linkonce.armextab.*)
     } > FLASH
 
+    /*
+     Sorted table of function start addresses plus extab lookup index.
+     Used for stack unwinding and backtraces.
+     */
     __exidx_start = .;
     .ARM.exidx :
     {

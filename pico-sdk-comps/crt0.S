@@ -183,6 +183,8 @@ decl_isr isr_irq31
 __unhandled_user_irq:
     mrs  r0, ipsr
     subs r0, #16
+// -- This symbol seems to be a debugging convenience.
+// -- "An unhandled user IRQ occurred. The IRQ number is in r0"
 .global unhandled_user_irq_num_in_r0
 unhandled_user_irq_num_in_r0:
     bkpt #0
