@@ -1,0 +1,28 @@
+{
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "sourceLanguages": [
+        "swift"
+      ],
+      "args": [],
+      "cwd": "${workspaceFolder:BootstrappedSwift}",
+      "name": "Debug Executable",
+      "program": "${workspaceFolder:BootstrappedSwift}/.build/debug/Executable",
+      "preLaunchTask": "swift: Build Debug Executable"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "sourceLanguages": [
+        "swift"
+      ],
+      "args": [],
+      "cwd": "${workspaceFolder:BootstrappedSwift}",
+      "name": "Release Executable",
+      "program": "${workspaceFolder:BootstrappedSwift}/.build/release/Executable",
+      "preLaunchTask": "swift: Build Release Executable"
+    }
+  ]
+}
