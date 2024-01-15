@@ -108,7 +108,7 @@ build/pico_int64_ops_aeabi.S.obj: pico-sdk-comps/pico_int64_ops_aeabi.S | build
 		-c "$<" \
 		-o "$@"
 
-build/main.o: main.swift MMIOVolatile/module.modulemap MMIOVolatile/MMIOVolatile.h | build
+build/App.o: App.swift MMIOVolatile/module.modulemap MMIOVolatile/MMIOVolatile.h | build
 	"${SWIFTC}" \
 		-O \
 		-wmo \
@@ -123,7 +123,7 @@ build/main.o: main.swift MMIOVolatile/module.modulemap MMIOVolatile/MMIOVolatile
 		"$<" \
 		-o "$@"
 
-build/SwiftPico.elf: build/bs2_default_padded_checksummed.S.obj build/crt0.S.obj build/bootrom.c.obj build/pico_int64_ops_aeabi.S.obj build/main.o | build
+build/SwiftPico.elf: build/bs2_default_padded_checksummed.S.obj build/crt0.S.obj build/bootrom.c.obj build/pico_int64_ops_aeabi.S.obj build/App.o | build
 	"${CLANG}" \
 		--target=armv6m-none-eabi \
 		-mfloat-abi=soft \
