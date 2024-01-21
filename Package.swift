@@ -12,11 +12,11 @@ import PackageDescription
 let package = Package(
     name: "RP2040",
     products: [
-        .executable(name: "Executable", targets: ["Executable"]),
+        .library(name: "App", type: .static, targets: ["App"]),
     ],
     targets: [
-        .executableTarget(
-            name: "Executable",
+        .target(
+            name: "App",
             dependencies: ["MMIOVolatile"],
             cSettings: [
                 .define("NDEBUG"),
@@ -31,16 +31,6 @@ let package = Package(
                 .unsafeFlags([
                     "-whole-module-optimization",
                     "-Xfrontend", "-function-sections",
-                    "-Xlinker", "--script=RP2040Support/memmap_default.ld",
-                    "-nostartfiles",
-                    "-Xlinker", "-Wl,--build-id=none",
-                    "-Xlinker", "-nostdlib",
-                    "-Xlinker", "-z", "-Xlinker", "max-page-size=4096",
-                    "-Xlinker", "--gc-sections",
-                    "-Xlinker", "RP2040Support/bs2_default_padded_checksummed.S.obj",
-                    "-Xlinker", "RP2040Support/crt0.S.obj",
-                    "-Xlinker", "RP2040Support/bootrom.c.obj",
-                    "-Xlinker", "RP2040Support/pico_int64_ops_aeabi.S.obj",
                 ]),
             ]
         ),
