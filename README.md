@@ -21,7 +21,22 @@ Build a Swift executable for the Raspberry Pi Pico without the Pico C SDK. Teste
   
 5. Edit `Makefile` to specify the paths to `clang`, `llvm-objcopy`, and `swiftc`. These must point to the toolchains you just installed.
 
-## Building
+## Building with SwiftPM
+
+Only works on Linux at this time.
+
+```sh
+# Build only
+# Creates a static library libApp.a
+swift build --triple armv6m-none-none-eabi
+
+# Build and link final executable App.elf
+swift package --triple armv6m-none-none-eabi \
+    --allow-writing-to-package-directory \
+    link
+```
+
+## Building with make
 
 Running `make` will build the `build/SwiftPico.elf` executable:
 
@@ -41,29 +56,4 @@ Alternatively, use `elf2uf2-rs` to create a UF2 file which you can copy to the P
 ```sh
 # Creates build/SwiftPico.uf2
 elf2uf2-rs build/SwiftPico.elf
-```
-
-## Building with SwiftPM
-
-Only works on Linux at this time.
-
-```sh
-swift build --triple armv6m-none-none-eabi -c release
-clang \
-    --target=armv6m-none-eabi \
-    -mfloat-abi=soft \
-    -march=armv6m \
-    -nostdlib \
-    -Wl,--build-id=none \
-    -O3 \
-    -Xlinker --script=RP2040Support/memmap_default.ld \
-    -Xlinker -z -Xlinker max-page-size=4096 \
-    -Xlinker --gc-sections \
-    -Xlinker --wrap=__aeabi_lmul \
-    .build/armv6m-none-none-eabi/release/libApp.a \
-    RP2040Support/bs2_default_padded_checksummed.S.obj \
-    RP2040Support/crt0.S.obj \
-    RP2040Support/bootrom.c.obj \
-    RP2040Support/pico_int64_ops_aeabi.S.obj \
-    -o App.elf
 ```
