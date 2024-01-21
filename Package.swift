@@ -35,6 +35,9 @@ let package = Package(
         ),
         .target(
             name: "RP2040Support",
+            resources: [
+                .copy("linker-script/memmap_default.ld"),
+            ],
             publicHeadersPath: "",
             cSettings: [
                 .headerSearchPath("headers"),
@@ -49,6 +52,10 @@ let package = Package(
         ),
         .target(
             name: "RP2040Boot2",
+            resources: [
+                .copy("linker-script/boot_stage2.ld"),
+                .copy("pad-checksum/pad_checksum"),
+            ],
             publicHeadersPath: "",
             cSettings: [
                 .headerSearchPath("headers"),
