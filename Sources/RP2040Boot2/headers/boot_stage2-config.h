@@ -90,6 +90,6 @@
     #endif
     // we can't include cdefs in assembly, so define our own, but avoid conflict with real ones for c inclusion
     #define PICO_BOOT_STAGE2_NAME __PICO_XSTRING(_BOOT_STAGE2)
-    #define PICO_BOOT_STAGE2_ASM __PICO_XSTRING(__PICO_CONCAT1(_BOOT_STAGE2,.S))
+    #define PICO_BOOT_STAGE2_ASM __PICO_XSTRING(__PICO_CONCAT1(_BOOT_STAGE2,.s.h))
 #endif
 #endif

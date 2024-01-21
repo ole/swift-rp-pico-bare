@@ -7,12 +7,12 @@ let package = Package(
     name: "RP2040",
     products: [
         .library(name: "App", type: .static, targets: ["App"]),
-        .plugin(name: "Link", targets: ["Link"]),
+        .library(name: "RP2040Boot2", type: .static, targets: ["RP2040Boot2"]),
     ],
     targets: [
         .target(
             name: "App",
-            dependencies: ["MMIOVolatile"],
+            dependencies: ["MMIOVolatile", "RP2040Support"],
             cSettings: [
                 .define("NDEBUG"),
                 .unsafeFlags([
@@ -33,16 +33,41 @@ let package = Package(
             name: "MMIOVolatile",
             publicHeadersPath: ""
         ),
+        .target(
+            name: "RP2040Support",
+            publicHeadersPath: "",
+            cSettings: [
+                .headerSearchPath("headers"),
+                .define("NDEBUG"),
+                .unsafeFlags([
+                    "-mfloat-abi=soft",
+                    "-march=armv6m",
+                    "-ffunction-sections",
+                    "-fdata-sections",
+                ]),
+            ]
+        ),
+        .target(
+            name: "RP2040Boot2",
+            publicHeadersPath: "",
+            cSettings: [
+                .headerSearchPath("headers"),
+                .define("NDEBUG"),
+                .unsafeFlags([
+                    "-mfloat-abi=soft",
+                    "-march=armv6m",
+                    "-ffunction-sections",
+                    "-fdata-sections",
+                ]),
+            ]
+        ),
         .plugin(
             name: "Link",
             capability: .command(
                 intent: .custom(
                     verb: "link",
                     description: "Links the final executable for the RP2040"
-                ),
-                permissions: [
-                    .writeToPackageDirectory(reason: "Creates the final executable")
-                ]
+                )
             )
         ),
     ]

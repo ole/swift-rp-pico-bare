@@ -31,9 +31,7 @@ Only works on Linux at this time.
 swift build --triple armv6m-none-none-eabi
 
 # Build and link final executable App.elf
-swift package --triple armv6m-none-none-eabi \
-    --allow-writing-to-package-directory \
-    link
+swift package --triple armv6m-none-none-eabi link
 ```
 
 ## Building with make
