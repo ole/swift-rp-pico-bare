@@ -40,7 +40,7 @@ struct LinkCommand: CommandPlugin {
         Diagnostics.remark("\(Self.logPrefix) clang: \(clang.path.string)")
         Diagnostics.remark("\(Self.logPrefix) objcopy: \(objcopy.path.string)")
 
-        // Build boot2
+        // Build and postprocess boot2
         let boot2Product = try context.package.products(named: ["RP2040Boot2"])[0]
         let boot2Outputs = try buildAndPostprocessBoot2(
             product: boot2Product,
@@ -70,7 +70,7 @@ struct LinkCommand: CommandPlugin {
 
         // Link the app
         let executableFilename = "\(appProduct.name).elf"
-        let linkedExecutable = context.pluginWorkDirectory
+        let executable = context.pluginWorkDirectory
             .appending(executableFilename)
         let rp2040SupportTarget = appProduct
             .targets[0]
@@ -91,11 +91,11 @@ struct LinkCommand: CommandPlugin {
         appClangArgs.append(contentsOf: boot2Outputs.map(\.string))
         appClangArgs.append(contentsOf: [
             appStaticLib.path.string,
-            "-o", linkedExecutable.string,
+            "-o", executable.string,
         ])
         try runProgram(clang.path, arguments: appClangArgs)
 
-        print("Executable: \(linkedExecutable)")
+        print("Executable: \(executable)")
     }
 }
 
