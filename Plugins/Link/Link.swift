@@ -17,9 +17,9 @@ struct Link: CommandPlugin {
             "-mfloat-abi=soft",
             "-march=armv6m",
             "-O3",
+            "-DNDEBUG",
             "-nostdlib",
             "-Wl,--build-id=none",
-            "-Xlinker", "--gc-sections",
         ]
 
         let buildParams = PackageManager.BuildParameters(
@@ -41,13 +41,46 @@ struct Link: CommandPlugin {
         }
         let boot2StaticLib = boot2BuildResult.builtArtifacts[0]
 
-        // Link boot2
+        // Create directory for intermediate files
         let intermediatesDir = context.pluginWorkDirectory
             .appending(subpath: "intermediates")
+        let intermediatesDirURL = URL(fileURLWithPath: intermediatesDir.string, isDirectory: true)
         try FileManager.default.createDirectory(
-            at: URL(fileURLWithPath: intermediatesDir.string, isDirectory: true),
+            at: intermediatesDirURL,
             withIntermediateDirectories: true
         )
+
+        // Postprocess boot2
+        //
+        // 1. Extract .o file from static library build product (.a)
+        // For some reason, if I try to link the .a file with Clang, it doesn't work.
+        // I need to pass in the .o file. What's the difference?
+        // The only difference I can see (with `file`) is that the .a file doesn't
+        // contain debug info, whereas the .o file does. Is this relevant? I don't
+        // think so because when I extract the .o file from the .a file, the debug
+        // info is back (according to `file`).
+        // How does SwiftPM create the .a file? Anything suspicious?
+        let ar = try context.tool(named: "ar")
+        let arURL = URL(fileURLWithPath: ar.path.string, isDirectory: false)
+        let boot2ObjFile = intermediatesDir.appending(subpath: "compile_time_choice.S.o")
+        let arArgs = [
+            "x",
+            boot2StaticLib.path.string,
+            boot2ObjFile.lastComponent // ar always extracts to the current dir
+        ]
+        let arProcess = Process()
+        arProcess.executableURL = arURL
+        arProcess.arguments = arArgs
+        arProcess.currentDirectoryURL = intermediatesDirURL
+        try arProcess.run()
+        arProcess.waitUntilExit()
+        guard arProcess.terminationStatus == 0 else {
+            Diagnostics.error("ar failed")
+            // TODO: Exit with error code
+            return
+        }
+
+        // 2. Apply boot2 linker script
         let boot2ELF = intermediatesDir.appending(subpath: "bs2_default.elf")
         let boot2LinkerScript = boot2Product
             .sourceModules[0]
@@ -56,6 +89,7 @@ struct Link: CommandPlugin {
         var boot2ELFClangArgs = commonClangArgs
         boot2ELFClangArgs.append(contentsOf: [
             "-Xlinker", "--script=\(boot2LinkerScript.path.string)",
+            boot2ObjFile.string,
             "-o", boot2ELF.string
         ])
         boot2ELFClangArgs.append(contentsOf: boot2BuildResult.builtArtifacts.map(\.path.string))
@@ -67,6 +101,7 @@ struct Link: CommandPlugin {
             return
         }
 
+        // 3. Convert boot2.elf to boot2.bin
         let boot2Bin = intermediatesDir.appending(subpath: "bs2_default.bin")
         let objcopy = try context.tool(named: "objcopy")
         let objcopyURL = URL(fileURLWithPath: objcopy.path.string, isDirectory: false)
@@ -83,6 +118,7 @@ struct Link: CommandPlugin {
             return
         }
 
+        // 4. Calculate checksum and write into assembly file
         let boot2ChecksummedAsm = intermediatesDir
             .appending(subpath: "bs2_default_padded_checksummed.s")
         let padChecksumScript = boot2Product
@@ -103,6 +139,7 @@ struct Link: CommandPlugin {
             return
         }
 
+        // 5. Assemble checksummed boot2 loader
         let boot2ChecksummedObj = intermediatesDir.appending(subpath: "bs2_default_padded_checksummed.s.o")
         var boot2ObjClangArgs = commonClangArgs
         boot2ObjClangArgs.append(contentsOf: [
@@ -144,6 +181,7 @@ struct Link: CommandPlugin {
             .first(where: { $0.type == .resource && $0.path.lastComponent == "memmap_default.ld" })!
         var appClangArgs = commonClangArgs
         appClangArgs.append(contentsOf: [
+            "-Xlinker", "--gc-sections",
             "-Xlinker", "--script=\(appLinkerScript.path.string)",
             "-Xlinker", "-z", "-Xlinker", "max-page-size=4096",
             "-Xlinker", "--wrap=__aeabi_lmul",
