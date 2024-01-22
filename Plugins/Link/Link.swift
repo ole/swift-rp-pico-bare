@@ -2,19 +2,19 @@ import Foundation
 import PackagePlugin
 
 @main
-struct Link: CommandPlugin {
+struct LinkCommand: CommandPlugin {
     static let pluginName: String = "link"
+
+    static var logPrefix: String {
+        "[\(pluginName)]"
+    }
 
     func performCommand(
         context: PluginContext,
         arguments: [String]
     ) async throws {
         let clang = try context.tool(named: "clang")
-        let clangURL = URL(
-            fileURLWithPath: clang.path.string,
-            isDirectory: false
-        )
-        Diagnostics.remark("[\(Self.pluginName)] clang: \(clang.path.string)")
+        Diagnostics.remark("\(Self.logPrefix) clang: \(clang.path.string)")
         let commonClangArgs = [
             "--target=armv6m-none-eabi",
             "-mfloat-abi=soft",
@@ -23,6 +23,7 @@ struct Link: CommandPlugin {
             "-nostdlib",
         ]
 
+        // TODO: Can we use the default build parameters the user is specifying on the command line (`-c release`, `--verbose`)?
         let buildParams = PackageManager.BuildParameters(
             configuration: .release,
             logging: .concise
@@ -30,14 +31,14 @@ struct Link: CommandPlugin {
 
         // Build RP2040 second-stage bootloader (boot2)
         let boot2Product = try context.package.products(named: ["RP2040Boot2"])[0]
-        Diagnostics.remark("[\(Self.pluginName)] Building product '\(boot2Product.name)'")
+        Diagnostics.remark("\(Self.logPrefix) Building product '\(boot2Product.name)'")
         let boot2BuildResult = try packageManager.build(
             .product(boot2Product.name),
             parameters: buildParams
         )
         guard boot2BuildResult.succeeded else {
             print(boot2BuildResult.logText)
-            Diagnostics.error("[\(Self.pluginName)] Building product '\(boot2Product.name)' failed")
+            Diagnostics.error("\(Self.logPrefix) Building product '\(boot2Product.name)' failed")
             // TODO: Exit with error code
             return
         }
@@ -52,8 +53,8 @@ struct Link: CommandPlugin {
         )
 
         // Postprocess boot2
-        Diagnostics.remark("[\(Self.pluginName)] Boot2 processing")
-        //
+        Diagnostics.remark("\(Self.logPrefix) Boot2 processing")
+
         // 1. Extract .o file from static library build product (.a)
         // For some reason, if I try to link the .a file with Clang, it doesn't work.
         // I need to pass in the .o file. What's the difference?
@@ -91,7 +92,6 @@ struct Link: CommandPlugin {
         // 3. Convert boot2.elf to boot2.bin
         let boot2Bin = intermediatesDir.appending(subpath: "bs2_default.bin")
         let objcopy = try context.tool(named: "objcopy")
-        let objcopyURL = URL(fileURLWithPath: objcopy.path.string, isDirectory: false)
         let objcopyArgs = [
             "-Obinary",
             boot2ELF.string,
@@ -122,6 +122,7 @@ struct Link: CommandPlugin {
         try runProgram(clang.path, arguments: boot2ObjClangArgs)
 
         // Build the app
+        Diagnostics.remark("\(Self.logPrefix) Creating app executable")
         let appProduct = try context.package.products(named: ["App"])[0]
         let appBuildResult = try packageManager.build(
             .product(appProduct.name),
@@ -129,7 +130,7 @@ struct Link: CommandPlugin {
         )
         guard appBuildResult.succeeded else {
             print(appBuildResult.logText)
-            Diagnostics.error("[\(Self.pluginName)] Building product '\(appProduct.name)' failed")
+            Diagnostics.error("\(Self.logPrefix) Building product '\(appProduct.name)' failed")
             // TODO: Exit with error code
             return
         }
@@ -161,52 +162,52 @@ struct Link: CommandPlugin {
 
         print("Executable: \(linkedExecutable)")
     }
+}
 
-    /// Runs an external program and waits for it to finish.
-    ///
-    /// Emits SwiftPM diagnostics:
-    /// - `remark` with the invocation (exectuable + arguments)
-    /// - `error` on non-zero exit code
-    ///
-    /// - Throws:
-    ///   - When the program cannot be launched.
-    ///   - Throws `ExitCode` when the program completes with a non-zero status.
-    private func runProgram(
-        _ executable: Path,
-        arguments: [String],
-        workingDirectory: Path? = nil
-    ) throws {
-        // If the command is longer than approx. one line, format it neatly
-        // on multiple lines for logging.
-        let fullCommand = "\(executable.string) \(arguments.joined(separator: " "))"
-        let logMessage = if fullCommand.count < 70 {
-            fullCommand
-        } else {
-            """
-            \(executable.string) \\
-                \(arguments.joined(separator: " \\\n    "))
-            """
-        }
-        Diagnostics.remark("[\(Self.pluginName)] \(logMessage)")
+/// Runs an external program and waits for it to finish.
+///
+/// Emits SwiftPM diagnostics:
+/// - `remark` with the invocation (exectuable + arguments)
+/// - `error` on non-zero exit code
+///
+/// - Throws:
+///   - When the program cannot be launched.
+///   - Throws `ExitCode` when the program completes with a non-zero status.
+private func runProgram(
+    _ executable: Path,
+    arguments: [String],
+    workingDirectory: Path? = nil
+) throws {
+    // If the command is longer than approx. one line, format it neatly
+    // on multiple lines for logging.
+    let fullCommand = "\(executable.string) \(arguments.joined(separator: " "))"
+    let logMessage = if fullCommand.count < 70 {
+        fullCommand
+    } else {
+        """
+        \(executable.string) \\
+            \(arguments.joined(separator: " \\\n    "))
+        """
+    }
+    Diagnostics.remark("\(LinkCommand.logPrefix) \(logMessage)")
 
-        let process = Process()
-        process.executableURL = URL(
-            fileURLWithPath: executable.string,
-            isDirectory: false
+    let process = Process()
+    process.executableURL = URL(
+        fileURLWithPath: executable.string,
+        isDirectory: false
+    )
+    process.arguments = arguments
+    if let workingDirectory {
+        process.currentDirectoryURL = URL(
+            fileURLWithPath: workingDirectory.string,
+            isDirectory: true
         )
-        process.arguments = arguments
-        if let workingDirectory {
-            process.currentDirectoryURL = URL(
-                fileURLWithPath: workingDirectory.string,
-                isDirectory: true
-            )
-        }
-        try process.run()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            Diagnostics.error("[\(Self.pluginName)] \(executable.lastComponent) exited with code \(process.terminationStatus)")
-            throw ExitCode(process.terminationStatus)
-        }
+    }
+    try process.run()
+    process.waitUntilExit()
+    guard process.terminationStatus == 0 else {
+        Diagnostics.error("\(LinkCommand.logPrefix) \(executable.lastComponent) exited with code \(process.terminationStatus)")
+        throw ExitCode(process.terminationStatus)
     }
 }
 
