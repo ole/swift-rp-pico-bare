@@ -3,6 +3,8 @@ import PackagePlugin
 
 @main
 struct Link: CommandPlugin {
+    static let pluginName: String = "link"
+
     func performCommand(
         context: PluginContext,
         arguments: [String]
@@ -12,14 +14,13 @@ struct Link: CommandPlugin {
             fileURLWithPath: clang.path.string,
             isDirectory: false
         )
+        Diagnostics.remark("[\(Self.pluginName)] clang: \(clang.path.string)")
         let commonClangArgs = [
             "--target=armv6m-none-eabi",
             "-mfloat-abi=soft",
             "-march=armv6m",
             "-O3",
-            "-DNDEBUG",
             "-nostdlib",
-            "-Wl,--build-id=none",
         ]
 
         let buildParams = PackageManager.BuildParameters(
@@ -29,13 +30,14 @@ struct Link: CommandPlugin {
 
         // Build RP2040 second-stage bootloader (boot2)
         let boot2Product = try context.package.products(named: ["RP2040Boot2"])[0]
+        Diagnostics.remark("[\(Self.pluginName)] Building product '\(boot2Product.name)'")
         let boot2BuildResult = try packageManager.build(
             .product(boot2Product.name),
             parameters: buildParams
         )
         guard boot2BuildResult.succeeded else {
             print(boot2BuildResult.logText)
-            Diagnostics.error("Building product '\(boot2Product.name)' failed")
+            Diagnostics.error("[\(Self.pluginName)] Building product '\(boot2Product.name)' failed")
             // TODO: Exit with error code
             return
         }
@@ -44,13 +46,13 @@ struct Link: CommandPlugin {
         // Create directory for intermediate files
         let intermediatesDir = context.pluginWorkDirectory
             .appending(subpath: "intermediates")
-        let intermediatesDirURL = URL(fileURLWithPath: intermediatesDir.string, isDirectory: true)
         try FileManager.default.createDirectory(
-            at: intermediatesDirURL,
+            at: URL(fileURLWithPath: intermediatesDir.string, isDirectory: true),
             withIntermediateDirectories: true
         )
 
         // Postprocess boot2
+        Diagnostics.remark("[\(Self.pluginName)] Boot2 processing")
         //
         // 1. Extract .o file from static library build product (.a)
         // For some reason, if I try to link the .a file with Clang, it doesn't work.
@@ -61,24 +63,13 @@ struct Link: CommandPlugin {
         // info is back (according to `file`).
         // How does SwiftPM create the .a file? Anything suspicious?
         let ar = try context.tool(named: "ar")
-        let arURL = URL(fileURLWithPath: ar.path.string, isDirectory: false)
         let boot2ObjFile = intermediatesDir.appending(subpath: "compile_time_choice.S.o")
         let arArgs = [
             "x",
             boot2StaticLib.path.string,
             boot2ObjFile.lastComponent // ar always extracts to the current dir
         ]
-        let arProcess = Process()
-        arProcess.executableURL = arURL
-        arProcess.arguments = arArgs
-        arProcess.currentDirectoryURL = intermediatesDirURL
-        try arProcess.run()
-        arProcess.waitUntilExit()
-        guard arProcess.terminationStatus == 0 else {
-            Diagnostics.error("ar failed")
-            // TODO: Exit with error code
-            return
-        }
+        try runProgram(ar.path, arguments: arArgs, workingDirectory: intermediatesDir)
 
         // 2. Apply boot2 linker script
         let boot2ELF = intermediatesDir.appending(subpath: "bs2_default.elf")
@@ -88,18 +79,14 @@ struct Link: CommandPlugin {
             .first(where: { $0.type == .resource && $0.path.lastComponent == "boot_stage2.ld" })!
         var boot2ELFClangArgs = commonClangArgs
         boot2ELFClangArgs.append(contentsOf: [
+            "-DNDEBUG",
+            "-Wl,--build-id=none",
             "-Xlinker", "--script=\(boot2LinkerScript.path.string)",
             boot2ObjFile.string,
             "-o", boot2ELF.string
         ])
         boot2ELFClangArgs.append(contentsOf: boot2BuildResult.builtArtifacts.map(\.path.string))
-        let boot2ELFProcess = try Process.run(clangURL, arguments: boot2ELFClangArgs)
-        boot2ELFProcess.waitUntilExit()
-        guard boot2ELFProcess.terminationStatus == 0 else {
-            Diagnostics.error("Clang failed linking boot2 elf file before checksumming")
-            // TODO: Exit with error code
-            return
-        }
+        try runProgram(clang.path, arguments: boot2ELFClangArgs)
 
         // 3. Convert boot2.elf to boot2.bin
         let boot2Bin = intermediatesDir.appending(subpath: "bs2_default.bin")
@@ -110,13 +97,7 @@ struct Link: CommandPlugin {
             boot2ELF.string,
             boot2Bin.string
         ]
-        let objcopyProcess = try Process.run(objcopyURL, arguments: objcopyArgs)
-        objcopyProcess.waitUntilExit()
-        guard objcopyProcess.terminationStatus == 0 else {
-            Diagnostics.error("objcopy failed")
-            // TODO: Exit with error code
-            return
-        }
+        try runProgram(objcopy.path, arguments: objcopyArgs)
 
         // 4. Calculate checksum and write into assembly file
         let boot2ChecksummedAsm = intermediatesDir
@@ -125,19 +106,12 @@ struct Link: CommandPlugin {
             .sourceModules[0]
             .sourceFiles
             .first(where: { $0.type == .resource && $0.path.lastComponent == "pad_checksum" })!
-        let padChecksumURL = URL(fileURLWithPath: padChecksumScript.path.string, isDirectory: false)
         let padChecksumArgs = [
             "-s", "0xffffffff",
             boot2Bin.string,
             boot2ChecksummedAsm.string
         ]
-        let padChecksumProcess = try Process.run(padChecksumURL, arguments: padChecksumArgs)
-        padChecksumProcess.waitUntilExit()
-        guard padChecksumProcess.terminationStatus == 0 else {
-            Diagnostics.error("pad_checksum failed")
-            // TODO: Exit with error code
-            return
-        }
+        try runProgram(padChecksumScript.path, arguments: padChecksumArgs)
 
         // 5. Assemble checksummed boot2 loader
         let boot2ChecksummedObj = intermediatesDir.appending(subpath: "bs2_default_padded_checksummed.s.o")
@@ -146,13 +120,7 @@ struct Link: CommandPlugin {
             "-c", boot2ChecksummedAsm.string,
             "-o", boot2ChecksummedObj.string
         ])
-        let boot2ObjProcess = try Process.run(clangURL, arguments: boot2ObjClangArgs)
-        boot2ObjProcess.waitUntilExit()
-        guard boot2ObjProcess.terminationStatus == 0 else {
-            Diagnostics.error("Clang failed linking boot2 obj file")
-            // TODO: Exit with error code
-            return
-        }
+        try runProgram(clang.path, arguments: boot2ObjClangArgs)
 
         // Build the app
         let appProduct = try context.package.products(named: ["App"])[0]
@@ -162,7 +130,7 @@ struct Link: CommandPlugin {
         )
         guard appBuildResult.succeeded else {
             print(appBuildResult.logText)
-            Diagnostics.error("Building product '\(appProduct.name)' failed")
+            Diagnostics.error("[\(Self.pluginName)] Building product '\(appProduct.name)' failed")
             // TODO: Exit with error code
             return
         }
@@ -181,6 +149,8 @@ struct Link: CommandPlugin {
             .first(where: { $0.type == .resource && $0.path.lastComponent == "memmap_default.ld" })!
         var appClangArgs = commonClangArgs
         appClangArgs.append(contentsOf: [
+            "-DNDEBUG",
+            "-Wl,--build-id=none",
             "-Xlinker", "--gc-sections",
             "-Xlinker", "--script=\(appLinkerScript.path.string)",
             "-Xlinker", "-z", "-Xlinker", "max-page-size=4096",
@@ -189,14 +159,67 @@ struct Link: CommandPlugin {
             boot2ChecksummedObj.string,
             "-o", linkedExecutable.string,
         ])
-        let appClangProcess = try Process.run(clangURL, arguments: appClangArgs)
-        appClangProcess.waitUntilExit()
-        guard appClangProcess.terminationStatus == 0 else {
-            Diagnostics.error("Clang failed linking app executable")
-            // TODO: Exit with error code
-            return
-        }
+        try runProgram(clang.path, arguments: appClangArgs)
 
         print("Executable: \(linkedExecutable)")
+    }
+
+    /// Runs an external program and waits for it to finish.
+    ///
+    /// Emits SwiftPM diagnostics:
+    /// - `remark` with the invocation (exectuable + arguments)
+    /// - `error` on non-zero exit code
+    ///
+    /// - Throws:
+    ///   - When the program cannot be launched.
+    ///   - Throws `ExitCode` when the program completes with a non-zero status.
+    private func runProgram(
+        _ executable: Path,
+        arguments: [String],
+        workingDirectory: Path? = nil
+    ) throws {
+        // If the command is longer than approx. one line, format it neatly
+        // on multiple lines for logging.
+        let fullCommand = "\(executable.string) \(arguments.joined(separator: " "))"
+        let logMessage = if fullCommand.count < 70 {
+            fullCommand
+        } else {
+            """
+            \(executable.string) \\
+                \(arguments.joined(separator: " \\\n    "))
+            """
+        }
+        Diagnostics.remark("[\(Self.pluginName)] \(logMessage)")
+
+        let process = Process()
+        process.executableURL = URL(
+            fileURLWithPath: executable.string,
+            isDirectory: false
+        )
+        process.arguments = arguments
+        if let workingDirectory {
+            process.currentDirectoryURL = URL(
+                fileURLWithPath: workingDirectory.string,
+                isDirectory: true
+            )
+        }
+        try process.run()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            Diagnostics.error("[\(Self.pluginName)] \(executable.lastComponent) exited with code \(process.terminationStatus)")
+            throw ExitCode(process.terminationStatus)
+        }
+    }
+}
+
+struct ExitCode: RawRepresentable, Error {
+    var rawValue: Int32
+
+    init(rawValue: Int32) {
+        self.rawValue = rawValue
+    }
+
+    init(_ code: Int32) {
+        self.init(rawValue: code)
     }
 }
