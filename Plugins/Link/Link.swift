@@ -72,16 +72,16 @@ struct Link: CommandPlugin {
         try runProgram(ar.path, arguments: arArgs, workingDirectory: intermediatesDir)
 
         // 2. Apply boot2 linker script
+        let boot2Target = boot2Product.targets[0]
         let boot2ELF = intermediatesDir.appending(subpath: "bs2_default.elf")
-        let boot2LinkerScript = boot2Product
-            .sourceModules[0]
-            .sourceFiles(withSuffix: "ld")
-            .first(where: { $0.type == .resource && $0.path.lastComponent == "boot_stage2.ld" })!
+        let boot2LinkerScript = boot2Target
+            .directory
+            .appending("linker-script", "boot_stage2.ld")
         var boot2ELFClangArgs = commonClangArgs
         boot2ELFClangArgs.append(contentsOf: [
             "-DNDEBUG",
             "-Wl,--build-id=none",
-            "-Xlinker", "--script=\(boot2LinkerScript.path.string)",
+            "-Xlinker", "--script=\(boot2LinkerScript.string)",
             boot2ObjFile.string,
             "-o", boot2ELF.string
         ])
@@ -102,16 +102,15 @@ struct Link: CommandPlugin {
         // 4. Calculate checksum and write into assembly file
         let boot2ChecksummedAsm = intermediatesDir
             .appending(subpath: "bs2_default_padded_checksummed.s")
-        let padChecksumScript = boot2Product
-            .sourceModules[0]
-            .sourceFiles
-            .first(where: { $0.type == .resource && $0.path.lastComponent == "pad_checksum" })!
+        let padChecksumScript = boot2Target
+            .directory
+            .appending("pad-checksum", "pad_checksum")
         let padChecksumArgs = [
             "-s", "0xffffffff",
             boot2Bin.string,
             boot2ChecksummedAsm.string
         ]
-        try runProgram(padChecksumScript.path, arguments: padChecksumArgs)
+        try runProgram(padChecksumScript, arguments: padChecksumArgs)
 
         // 5. Assemble checksummed boot2 loader
         let boot2ChecksummedObj = intermediatesDir.appending(subpath: "bs2_default_padded_checksummed.s.o")
@@ -144,15 +143,14 @@ struct Link: CommandPlugin {
             .targets[0]
             .recursiveTargetDependencies
             .first(where: { $0.name == "RP2040Support" })!
-            .sourceModule!
-            .sourceFiles(withSuffix: "ld")
-            .first(where: { $0.type == .resource && $0.path.lastComponent == "memmap_default.ld" })!
+            .directory
+            .appending("linker-script", "memmap_default.ld")
         var appClangArgs = commonClangArgs
         appClangArgs.append(contentsOf: [
             "-DNDEBUG",
             "-Wl,--build-id=none",
             "-Xlinker", "--gc-sections",
-            "-Xlinker", "--script=\(appLinkerScript.path.string)",
+            "-Xlinker", "--script=\(appLinkerScript.string)",
             "-Xlinker", "-z", "-Xlinker", "max-page-size=4096",
             "-Xlinker", "--wrap=__aeabi_lmul",
             appStaticLib.path.string,

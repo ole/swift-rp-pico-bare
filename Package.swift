@@ -35,8 +35,8 @@ let package = Package(
         ),
         .target(
             name: "RP2040Support",
-            resources: [
-                .copy("linker-script/memmap_default.ld"),
+            exclude: [
+                "linker-script",
             ],
             publicHeadersPath: "",
             cSettings: [
@@ -52,9 +52,9 @@ let package = Package(
         ),
         .target(
             name: "RP2040Boot2",
-            resources: [
-                .copy("linker-script/boot_stage2.ld"),
-                .copy("pad-checksum/pad_checksum"),
+            exclude: [
+                "linker-script",
+                "pad-checksum",
             ],
             publicHeadersPath: "",
             cSettings: [
