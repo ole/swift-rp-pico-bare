@@ -13,8 +13,22 @@ struct LinkCommand: CommandPlugin {
         context: PluginContext,
         arguments: [String]
     ) async throws {
+        // Create directory for intermediate files
+        let intermediatesDir = context.pluginWorkDirectory
+            .appending("intermediates")
+        try FileManager.default.createDirectory(
+            at: URL(fileURLWithPath: intermediatesDir.string, isDirectory: true),
+            withIntermediateDirectories: true
+        )
+
+        // TODO: Can we use the default build parameters the user is specifying on the command line (`-c release`, `--verbose`)?
+        let buildParameters = PackageManager.BuildParameters(
+            configuration: .release,
+            logging: .concise
+        )
+
+        // Find external tools
         let clang = try context.tool(named: "clang")
-        Diagnostics.remark("\(Self.logPrefix) clang: \(clang.path.string)")
         let commonClangArgs = [
             "--target=armv6m-none-eabi",
             "-mfloat-abi=soft",
@@ -22,128 +36,50 @@ struct LinkCommand: CommandPlugin {
             "-O3",
             "-nostdlib",
         ]
-
-        // TODO: Can we use the default build parameters the user is specifying on the command line (`-c release`, `--verbose`)?
-        let buildParams = PackageManager.BuildParameters(
-            configuration: .release,
-            logging: .concise
-        )
-
-        // Build RP2040 second-stage bootloader (boot2)
-        let boot2Product = try context.package.products(named: ["RP2040Boot2"])[0]
-        Diagnostics.remark("\(Self.logPrefix) Building product '\(boot2Product.name)'")
-        let boot2BuildResult = try packageManager.build(
-            .product(boot2Product.name),
-            parameters: buildParams
-        )
-        guard boot2BuildResult.succeeded else {
-            print(boot2BuildResult.logText)
-            Diagnostics.error("\(Self.logPrefix) Building product '\(boot2Product.name)' failed")
-            // TODO: Exit with error code
-            return
-        }
-        let boot2StaticLib = boot2BuildResult.builtArtifacts[0]
-
-        // Create directory for intermediate files
-        let intermediatesDir = context.pluginWorkDirectory
-            .appending(subpath: "intermediates")
-        try FileManager.default.createDirectory(
-            at: URL(fileURLWithPath: intermediatesDir.string, isDirectory: true),
-            withIntermediateDirectories: true
-        )
-
-        // Postprocess boot2
-        Diagnostics.remark("\(Self.logPrefix) Boot2 processing")
-
-        // 1. Extract .o file from static library build product (.a)
-        // For some reason, if I try to link the .a file with Clang, it doesn't work.
-        // I need to pass in the .o file. What's the difference?
-        // The only difference I can see (with `file`) is that the .a file doesn't
-        // contain debug info, whereas the .o file does. Is this relevant? I don't
-        // think so because when I extract the .o file from the .a file, the debug
-        // info is back (according to `file`).
-        // How does SwiftPM create the .a file? Anything suspicious?
         let ar = try context.tool(named: "ar")
-        let boot2ObjFile = intermediatesDir.appending(subpath: "compile_time_choice.S.o")
-        let arArgs = [
-            "x",
-            boot2StaticLib.path.string,
-            boot2ObjFile.lastComponent // ar always extracts to the current dir
-        ]
-        try runProgram(ar.path, arguments: arArgs, workingDirectory: intermediatesDir)
-
-        // 2. Apply boot2 linker script
-        let boot2Target = boot2Product.targets[0]
-        let boot2ELF = intermediatesDir.appending(subpath: "bs2_default.elf")
-        let boot2LinkerScript = boot2Target
-            .directory
-            .appending("linker-script", "boot_stage2.ld")
-        var boot2ELFClangArgs = commonClangArgs
-        boot2ELFClangArgs.append(contentsOf: [
-            "-DNDEBUG",
-            "-Wl,--build-id=none",
-            "-Xlinker", "--script=\(boot2LinkerScript.string)",
-            boot2ObjFile.string,
-            "-o", boot2ELF.string
-        ])
-        boot2ELFClangArgs.append(contentsOf: boot2BuildResult.builtArtifacts.map(\.path.string))
-        try runProgram(clang.path, arguments: boot2ELFClangArgs)
-
-        // 3. Convert boot2.elf to boot2.bin
-        let boot2Bin = intermediatesDir.appending(subpath: "bs2_default.bin")
         let objcopy = try context.tool(named: "objcopy")
-        let objcopyArgs = [
-            "-Obinary",
-            boot2ELF.string,
-            boot2Bin.string
-        ]
-        try runProgram(objcopy.path, arguments: objcopyArgs)
+        Diagnostics.remark("\(Self.logPrefix) clang: \(clang.path.string)")
+        Diagnostics.remark("\(Self.logPrefix) ar: \(ar.path.string)")
+        Diagnostics.remark("\(Self.logPrefix) objcopy: \(objcopy.path.string)")
 
-        // 4. Calculate checksum and write into assembly file
-        let boot2ChecksummedAsm = intermediatesDir
-            .appending(subpath: "bs2_default_padded_checksummed.s")
-        let padChecksumScript = boot2Target
-            .directory
-            .appending("pad-checksum", "pad_checksum")
-        let padChecksumArgs = [
-            "-s", "0xffffffff",
-            boot2Bin.string,
-            boot2ChecksummedAsm.string
-        ]
-        try runProgram(padChecksumScript, arguments: padChecksumArgs)
-
-        // 5. Assemble checksummed boot2 loader
-        let boot2ChecksummedObj = intermediatesDir.appending(subpath: "bs2_default_padded_checksummed.s.o")
-        var boot2ObjClangArgs = commonClangArgs
-        boot2ObjClangArgs.append(contentsOf: [
-            "-c", boot2ChecksummedAsm.string,
-            "-o", boot2ChecksummedObj.string
-        ])
-        try runProgram(clang.path, arguments: boot2ObjClangArgs)
+        // Build boot2
+        let boot2Product = try context.package.products(named: ["RP2040Boot2"])[0]
+        let boot2Outputs = try buildAndPostprocessBoot2(
+            product: boot2Product,
+            packageManager: packageManager,
+            buildParameters: buildParameters,
+            intermediatesDir: intermediatesDir,
+            clang: clang,
+            commonCFlags: commonClangArgs,
+            ar: ar,
+            objcopy: objcopy
+        )
 
         // Build the app
         Diagnostics.remark("\(Self.logPrefix) Creating app executable")
         let appProduct = try context.package.products(named: ["App"])[0]
-        let appBuildResult = try packageManager.build(
+        Diagnostics.remark("\(LinkCommand.logPrefix) Building product '\(appProduct.name)' with config '\(buildParameters.configuration.rawValue)'")
+        let buildResult = try packageManager.build(
             .product(appProduct.name),
-            parameters: buildParams
+            parameters: buildParameters
         )
-        guard appBuildResult.succeeded else {
-            print(appBuildResult.logText)
+        guard buildResult.succeeded else {
+            // TODO: Is printing correct? Or will this result in duplicated output? Should this be a Diagnostic?
+            print(buildResult.logText)
             Diagnostics.error("\(Self.logPrefix) Building product '\(appProduct.name)' failed")
-            // TODO: Exit with error code
-            return
+            throw BuildError()
         }
-        let appStaticLib = appBuildResult.builtArtifacts[0]
+        let appStaticLib = buildResult.builtArtifacts[0]
 
         // Link the app
         let executableFilename = "\(appProduct.name).elf"
         let linkedExecutable = context.pluginWorkDirectory
-            .appending(subpath: executableFilename)
-        let appLinkerScript = appProduct
+            .appending(executableFilename)
+        let rp2040SupportTarget = appProduct
             .targets[0]
             .recursiveTargetDependencies
             .first(where: { $0.name == "RP2040Support" })!
+        let appLinkerScript = rp2040SupportTarget
             .directory
             .appending("linker-script", "memmap_default.ld")
         var appClangArgs = commonClangArgs
@@ -154,14 +90,113 @@ struct LinkCommand: CommandPlugin {
             "-Xlinker", "--script=\(appLinkerScript.string)",
             "-Xlinker", "-z", "-Xlinker", "max-page-size=4096",
             "-Xlinker", "--wrap=__aeabi_lmul",
+        ])
+        appClangArgs.append(contentsOf: boot2Outputs.map(\.string))
+        appClangArgs.append(contentsOf: [
             appStaticLib.path.string,
-            boot2ChecksummedObj.string,
             "-o", linkedExecutable.string,
         ])
         try runProgram(clang.path, arguments: appClangArgs)
 
         print("Executable: \(linkedExecutable)")
     }
+}
+
+/// Builds the RP2040 second-stage bootloader (boot2).
+///
+/// - Returns: An array of paths to object files that must be linked into the
+///   main app to create a valid RP2040 executable.
+private func buildAndPostprocessBoot2(
+    product: some Product,
+    packageManager: PackageManager,
+    buildParameters: PackageManager.BuildParameters,
+    intermediatesDir: Path,
+    clang: PluginContext.Tool,
+    commonCFlags: [String],
+    ar: PluginContext.Tool,
+    objcopy: PluginContext.Tool
+) throws -> [Path] {
+    Diagnostics.remark("\(LinkCommand.logPrefix) Building second-stage bootloader (boot2)")
+    Diagnostics.remark("\(LinkCommand.logPrefix) Building product '\(product.name)' with config '\(buildParameters.configuration.rawValue)'")
+    let buildResult = try packageManager.build(
+        .product(product.name),
+        parameters: buildParameters
+    )
+    guard buildResult.succeeded else {
+        // TODO: Is printing correct? Or will this result in duplicated output? Should this be a Diagnostic?
+        print(buildResult.logText)
+        Diagnostics.error("\(LinkCommand.logPrefix) Building product '\(product.name)' failed")
+        throw BuildError()
+    }
+    let staticLib = buildResult.builtArtifacts[0]
+
+    // Postprocessing
+    Diagnostics.remark("\(LinkCommand.logPrefix) Calculating boot2 checksum and embedding it into the binary")
+
+    // 1. Extract .o file from static library build product (.a)
+    // For some reason, if I try to link the .a file with Clang, it doesn't work.
+    // I need to pass in the .o file. What's the difference?
+    // The only difference I can see (with `file`) is that the .a file doesn't
+    // contain debug info, whereas the .o file does. Is this relevant? I don't
+    // think so because when I extract the .o file from the .a file, the debug
+    // info is back (according to `file`).
+    // How does SwiftPM create the .a file? Anything suspicious?
+    let boot2ObjFile = intermediatesDir.appending("compile_time_choice.S.o")
+    let arArgs = [
+        "x",
+        staticLib.path.string,
+        boot2ObjFile.lastComponent // ar always extracts to the current dir
+    ]
+    try runProgram(ar.path, arguments: arArgs, workingDirectory: intermediatesDir)
+
+    // 2. Apply linker script
+    let boot2Target = product.targets[0]
+    let linkerScript = boot2Target
+        .directory
+        .appending("linker-script", "boot_stage2.ld")
+    let preChecksumELF = intermediatesDir.appending("bs2_default.elf")
+    var preChecksumClangArgs = commonCFlags
+    preChecksumClangArgs.append(contentsOf: [
+        "-DNDEBUG",
+        "-Wl,--build-id=none",
+        "-Xlinker", "--script=\(linkerScript.string)",
+        boot2ObjFile.string,
+        "-o", preChecksumELF.string
+    ])
+    preChecksumClangArgs.append(contentsOf: buildResult.builtArtifacts.map(\.path.string))
+    try runProgram(clang.path, arguments: preChecksumClangArgs)
+
+    // 3. Convert .elf to .bin
+    let preChecksumBin = intermediatesDir.appending("\(preChecksumELF.stem).bin")
+    let objcopyArgs = [
+        "-Obinary",
+        preChecksumELF.string,
+        preChecksumBin.string
+    ]
+    try runProgram(objcopy.path, arguments: objcopyArgs)
+
+    // 4. Calculate checksum and write into assembly file
+    let checksummedAsm = intermediatesDir.appending("bs2_default_padded_checksummed.s")
+    let padChecksumScript = boot2Target
+        .directory
+        .appending("pad-checksum", "pad_checksum")
+    let padChecksumArgs = [
+        "-s", "0xffffffff",
+        preChecksumBin.string,
+        checksummedAsm.string
+    ]
+    try runProgram(padChecksumScript, arguments: padChecksumArgs)
+
+    // 5. Assemble checksummed boot2 loader
+    let checksummedObj = intermediatesDir.appending("bs2_default_padded_checksummed.s.o")
+    var checksummedObjClangArgs = commonCFlags
+    checksummedObjClangArgs.append(contentsOf: [
+        "-c", checksummedAsm.string,
+        "-o", checksummedObj.string
+    ])
+    try runProgram(clang.path, arguments: checksummedObjClangArgs)
+
+    return [checksummedObj]
 }
 
 /// Runs an external program and waits for it to finish.
@@ -222,3 +257,5 @@ struct ExitCode: RawRepresentable, Error {
         self.init(rawValue: code)
     }
 }
+
+struct BuildError: Error {}
