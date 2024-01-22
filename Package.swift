@@ -14,11 +14,9 @@ let package = Package(
             name: "App",
             dependencies: ["MMIOVolatile", "RP2040Support"],
             cSettings: [
-                .define("NDEBUG"),
                 .unsafeFlags([
                     "-mfloat-abi=soft",
                     "-march=armv6m",
-                    "-nostdlib",
                 ]),
             ],
             swiftSettings: [
