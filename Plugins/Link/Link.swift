@@ -36,10 +36,8 @@ struct LinkCommand: CommandPlugin {
             "-O3",
             "-nostdlib",
         ]
-        let ar = try context.tool(named: "ar")
         let objcopy = try context.tool(named: "objcopy")
         Diagnostics.remark("\(Self.logPrefix) clang: \(clang.path.string)")
-        Diagnostics.remark("\(Self.logPrefix) ar: \(ar.path.string)")
         Diagnostics.remark("\(Self.logPrefix) objcopy: \(objcopy.path.string)")
 
         // Build boot2
@@ -51,7 +49,6 @@ struct LinkCommand: CommandPlugin {
             intermediatesDir: intermediatesDir,
             clang: clang,
             commonCFlags: commonClangArgs,
-            ar: ar,
             objcopy: objcopy
         )
 
@@ -113,7 +110,6 @@ private func buildAndPostprocessBoot2(
     intermediatesDir: Path,
     clang: PluginContext.Tool,
     commonCFlags: [String],
-    ar: PluginContext.Tool,
     objcopy: PluginContext.Tool
 ) throws -> [Path] {
     Diagnostics.remark("\(LinkCommand.logPrefix) Building second-stage bootloader (boot2)")
@@ -133,23 +129,7 @@ private func buildAndPostprocessBoot2(
     // Postprocessing
     Diagnostics.remark("\(LinkCommand.logPrefix) Calculating boot2 checksum and embedding it into the binary")
 
-    // 1. Extract .o file from static library build product (.a)
-    // For some reason, if I try to link the .a file with Clang, it doesn't work.
-    // I need to pass in the .o file. What's the difference?
-    // The only difference I can see (with `file`) is that the .a file doesn't
-    // contain debug info, whereas the .o file does. Is this relevant? I don't
-    // think so because when I extract the .o file from the .a file, the debug
-    // info is back (according to `file`).
-    // How does SwiftPM create the .a file? Anything suspicious?
-    let boot2ObjFile = intermediatesDir.appending("compile_time_choice.S.o")
-    let arArgs = [
-        "x",
-        staticLib.path.string,
-        boot2ObjFile.lastComponent // ar always extracts to the current dir
-    ]
-    try runProgram(ar.path, arguments: arArgs, workingDirectory: intermediatesDir)
-
-    // 2. Apply linker script
+    // 1. Link boot2 into .elf file
     let boot2Target = product.targets[0]
     let linkerScript = boot2Target
         .directory
@@ -159,14 +139,19 @@ private func buildAndPostprocessBoot2(
     preChecksumClangArgs.append(contentsOf: [
         "-DNDEBUG",
         "-Wl,--build-id=none",
+        // We must tell the linker to keep all .o files in the .a file.
+        // Without this, the linker will create an empty .elf file because no
+        // symbols are referenced.
+        //
+        // On macOS, we may need -all_load or similar here.
+        "-Xlinker", "--whole-archive",
         "-Xlinker", "--script=\(linkerScript.string)",
-        boot2ObjFile.string,
         "-o", preChecksumELF.string
     ])
     preChecksumClangArgs.append(contentsOf: buildResult.builtArtifacts.map(\.path.string))
     try runProgram(clang.path, arguments: preChecksumClangArgs)
 
-    // 3. Convert .elf to .bin
+    // 2. Convert .elf to .bin
     let preChecksumBin = intermediatesDir.appending("\(preChecksumELF.stem).bin")
     let objcopyArgs = [
         "-Obinary",
@@ -175,7 +160,7 @@ private func buildAndPostprocessBoot2(
     ]
     try runProgram(objcopy.path, arguments: objcopyArgs)
 
-    // 4. Calculate checksum and write into assembly file
+    // 3. Calculate checksum and write into assembly file
     let checksummedAsm = intermediatesDir.appending("bs2_default_padded_checksummed.s")
     let padChecksumScript = boot2Target
         .directory
@@ -187,7 +172,7 @@ private func buildAndPostprocessBoot2(
     ]
     try runProgram(padChecksumScript, arguments: padChecksumArgs)
 
-    // 5. Assemble checksummed boot2 loader
+    // 4. Assemble checksummed boot2 loader
     let checksummedObj = intermediatesDir.appending("bs2_default_padded_checksummed.s.o")
     var checksummedObjClangArgs = commonCFlags
     checksummedObjClangArgs.append(contentsOf: [
