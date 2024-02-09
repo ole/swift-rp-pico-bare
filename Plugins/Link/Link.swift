@@ -11,8 +11,10 @@ struct LinkCommand: CommandPlugin {
 
     func performCommand(
         context: PluginContext,
-        arguments: [String]
+        arguments commandLineArguments: [String]
     ) async throws {
+        let arguments = try parseArguments(commandLineArguments)
+
         // Create directory for intermediate files
         let intermediatesDir = context.pluginWorkDirectory
             .appending("intermediates")
@@ -28,7 +30,7 @@ struct LinkCommand: CommandPlugin {
         )
 
         // Find external tools
-        let clang = try context.tool(named: "clang")
+        let clang = CommandLineTool(try context.tool(named: "clang"))
         let commonClangArgs = [
             "--target=armv6m-none-eabi",
             "-mfloat-abi=soft",
@@ -36,9 +38,26 @@ struct LinkCommand: CommandPlugin {
             "-O3",
             "-nostdlib",
         ]
-        let objcopy = try context.tool(named: "objcopy")
-        Diagnostics.remark("\(Self.logPrefix) clang: \(clang.path.string)")
-        Diagnostics.remark("\(Self.logPrefix) objcopy: \(objcopy.path.string)")
+
+        let objcopy: CommandLineTool
+        do {
+            // tool(named:) will find the tool if it's in the PATH, but it won't
+            // find it if arguments.objcopyPath is a fully specified absolute or
+            // relative path to a specific executable in a directory.
+            let tool = try context.tool(named: arguments.objcopyPath ?? "objcopy")
+            objcopy = CommandLineTool(tool)
+        } catch {
+            if let objcopyPath = arguments.objcopyPath {
+                // Try to resolve the given path against the current working dir.
+                let toolURL = URL(filePath: objcopyPath).absoluteURL
+                objcopy = CommandLineTool(name: "objcopy", url: toolURL)
+            } else {
+                throw error
+            }
+        }
+
+        Diagnostics.remark("\(Self.logPrefix) clang: \(clang.path)")
+        Diagnostics.remark("\(Self.logPrefix) objcopy: \(objcopy.path)")
 
         // Build and postprocess boot2
         let boot2Product = try context.package.products(named: ["RP2040Boot2"])[0]
@@ -55,7 +74,7 @@ struct LinkCommand: CommandPlugin {
         // Build the app
         Diagnostics.remark("\(Self.logPrefix) Creating app executable")
         let appProduct = try context.package.products(named: ["App"])[0]
-        Diagnostics.remark("\(LinkCommand.logPrefix) Building product '\(appProduct.name)' with config '\(buildParameters.configuration.rawValue)'")
+        Diagnostics.remark("\(Self.logPrefix) Building product '\(appProduct.name)' with config '\(buildParameters.configuration.rawValue)'")
         let buildResult = try packageManager.build(
             .product(appProduct.name),
             parameters: buildParameters
@@ -93,9 +112,47 @@ struct LinkCommand: CommandPlugin {
             appStaticLib.path.string,
             "-o", executable.string,
         ])
-        try runProgram(clang.path, arguments: appClangArgs)
+        try runProgram(clang.url, arguments: appClangArgs)
 
         print("Executable: \(executable)")
+    }
+}
+
+struct CLIArguments {
+    var objcopyPath: Optional<String> = nil
+}
+
+private func parseArguments(_ arguments: [String]) throws -> CLIArguments {
+    var argumentExtractor = ArgumentExtractor(arguments)
+    let objcopyArgs = argumentExtractor.extractOption(named: "objcopy")
+    if objcopyArgs.count > 1 {
+        Diagnostics.error("\(LinkCommand.logPrefix) Argument --objcopy specified multiple times")
+        throw BuildError()
+    }
+    if !argumentExtractor.remainingArguments.isEmpty {
+        Diagnostics.error("\(LinkCommand.logPrefix) Unrecognized arguments: \(argumentExtractor.remainingArguments.joined(separator: " "))")
+        throw BuildError()
+    }
+    return CLIArguments(
+        objcopyPath: objcopyArgs.first
+    )
+}
+
+/// Duplicate of `PluginContext.Tool`. Needed because that struct has no public
+/// initializer.
+struct CommandLineTool {
+    var name: String
+    var url: URL
+
+    var path: String {
+        url.path(percentEncoded: false)
+    }
+}
+
+extension CommandLineTool {
+    init(_ pluginContextTool: PluginContext.Tool) {
+        self.name = pluginContextTool.name
+        self.url = URL(filePath: pluginContextTool.path.string, directoryHint: .notDirectory)
     }
 }
 
@@ -108,9 +165,9 @@ private func buildAndPostprocessBoot2(
     packageManager: PackageManager,
     buildParameters: PackageManager.BuildParameters,
     intermediatesDir: Path,
-    clang: PluginContext.Tool,
+    clang: CommandLineTool,
     commonCFlags: [String],
-    objcopy: PluginContext.Tool
+    objcopy: CommandLineTool
 ) throws -> [Path] {
     Diagnostics.remark("\(LinkCommand.logPrefix) Building second-stage bootloader (boot2)")
     Diagnostics.remark("\(LinkCommand.logPrefix) Building product '\(product.name)' with config '\(buildParameters.configuration.rawValue)'")
@@ -149,7 +206,7 @@ private func buildAndPostprocessBoot2(
         "-o", preChecksumELF.string
     ])
     preChecksumClangArgs.append(contentsOf: buildResult.builtArtifacts.map(\.path.string))
-    try runProgram(clang.path, arguments: preChecksumClangArgs)
+    try runProgram(clang.url, arguments: preChecksumClangArgs)
 
     // 2. Convert .elf to .bin
     let preChecksumBin = intermediatesDir.appending("\(preChecksumELF.stem).bin")
@@ -158,13 +215,12 @@ private func buildAndPostprocessBoot2(
         preChecksumELF.string,
         preChecksumBin.string
     ]
-    try runProgram(objcopy.path, arguments: objcopyArgs)
+    try runProgram(objcopy.url, arguments: objcopyArgs)
 
     // 3. Calculate checksum and write into assembly file
     let checksummedAsm = intermediatesDir.appending("bs2_default_padded_checksummed.s")
-    let padChecksumScript = boot2Target
-        .directory
-        .appending("pad-checksum", "pad_checksum")
+    let padChecksumScript = URL(filePath: boot2Target.directory.string, directoryHint: .isDirectory)
+        .appending(components: "pad-checksum", "pad_checksum")
     let padChecksumArgs = [
         "-s", "0xffffffff",
         preChecksumBin.string,
@@ -179,7 +235,7 @@ private func buildAndPostprocessBoot2(
         "-c", checksummedAsm.string,
         "-o", checksummedObj.string
     ])
-    try runProgram(clang.path, arguments: checksummedObjClangArgs)
+    try runProgram(clang.url, arguments: checksummedObjClangArgs)
 
     return [checksummedObj]
 }
@@ -194,28 +250,25 @@ private func buildAndPostprocessBoot2(
 ///   - When the program cannot be launched.
 ///   - Throws `ExitCode` when the program completes with a non-zero status.
 private func runProgram(
-    _ executable: Path,
+    _ executable: URL,
     arguments: [String],
     workingDirectory: Path? = nil
 ) throws {
     // If the command is longer than approx. one line, format it neatly
     // on multiple lines for logging.
-    let fullCommand = "\(executable.string) \(arguments.joined(separator: " "))"
+    let fullCommand = "\(executable.path(percentEncoded: false)) \(arguments.joined(separator: " "))"
     let logMessage = if fullCommand.count < 70 {
         fullCommand
     } else {
         """
-        \(executable.string) \\
+        \(executable.path) \\
             \(arguments.joined(separator: " \\\n    "))
         """
     }
     Diagnostics.remark("\(LinkCommand.logPrefix) \(logMessage)")
 
     let process = Process()
-    process.executableURL = URL(
-        fileURLWithPath: executable.string,
-        isDirectory: false
-    )
+    process.executableURL = executable
     process.arguments = arguments
     if let workingDirectory {
         process.currentDirectoryURL = URL(
@@ -226,7 +279,7 @@ private func runProgram(
     try process.run()
     process.waitUntilExit()
     guard process.terminationStatus == 0 else {
-        Diagnostics.error("\(LinkCommand.logPrefix) \(executable.lastComponent) exited with code \(process.terminationStatus)")
+        Diagnostics.error("\(LinkCommand.logPrefix) \(executable.lastPathComponent) exited with code \(process.terminationStatus)")
         throw ExitCode(process.terminationStatus)
     }
 }
