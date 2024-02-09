@@ -14,6 +14,24 @@ struct LinkCommand: CommandPlugin {
         arguments commandLineArguments: [String]
     ) async throws {
         let arguments = try parseArguments(commandLineArguments)
+        guard !arguments.shouldShowHelp else {
+            print(
+                """
+                link: A SwiftPM command plugin for building an executable
+                for the RP2040 microcontroller.
+
+                USAGE:
+                  swift package --triple armv6m-none-none-eabi link [options]
+
+                OPTIONS:
+                  --help        Display this help message.
+                  --objcopy     Path to LLVM's objcopy tool, e.g. llvm-objcopy.
+                                If omitted, we look for a tool named objcopy in
+                                your PATH.
+                """
+            )
+            return
+        }
 
         // Create directory for intermediate files
         let intermediatesDir = context.pluginWorkDirectory
@@ -119,11 +137,13 @@ struct LinkCommand: CommandPlugin {
 }
 
 struct CLIArguments {
+    var shouldShowHelp: Bool
     var objcopyPath: Optional<String> = nil
 }
 
 private func parseArguments(_ arguments: [String]) throws -> CLIArguments {
     var argumentExtractor = ArgumentExtractor(arguments)
+    let shouldShowHelp = argumentExtractor.extractFlag(named: "help") > 0
     let objcopyArgs = argumentExtractor.extractOption(named: "objcopy")
     if objcopyArgs.count > 1 {
         Diagnostics.error("\(LinkCommand.logPrefix) Argument --objcopy specified multiple times")
@@ -134,6 +154,7 @@ private func parseArguments(_ arguments: [String]) throws -> CLIArguments {
         throw BuildError()
     }
     return CLIArguments(
+        shouldShowHelp: shouldShowHelp,
         objcopyPath: objcopyArgs.first
     )
 }
