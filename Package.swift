@@ -12,7 +12,24 @@ let package = Package(
     targets: [
         .target(
             name: "App",
-            dependencies: ["MMIOVolatile", "RP2040Support"],
+            dependencies: ["RP2040", "RP2040Support"],
+            cSettings: [
+                .unsafeFlags([
+                    "-mfloat-abi=soft",
+                    "-march=armv6m",
+                ]),
+            ],
+            swiftSettings: [
+                .enableExperimentalFeature("Embedded"),
+                .unsafeFlags([
+                    "-whole-module-optimization",
+                    "-Xfrontend", "-function-sections",
+                ]),
+            ]
+        ),
+        .target(
+            name: "RP2040",
+            dependencies: ["MMIOVolatile"],
             cSettings: [
                 .unsafeFlags([
                     "-mfloat-abi=soft",
