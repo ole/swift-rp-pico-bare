@@ -67,7 +67,7 @@ struct LinkCommand: CommandPlugin {
         } catch {
             if let objcopyPath = arguments.objcopyPath {
                 // Try to resolve the given path against the current working dir.
-                let toolURL = URL(filePath: objcopyPath).absoluteURL
+                let toolURL = URL(fileURLWithPath: objcopyPath, isDirectory: false).absoluteURL
                 objcopy = CommandLineTool(name: "objcopy", url: toolURL)
             } else {
                 throw error
@@ -166,14 +166,14 @@ struct CommandLineTool {
     var url: URL
 
     var path: String {
-        url.path(percentEncoded: false)
+        url.path
     }
 }
 
 extension CommandLineTool {
     init(_ pluginContextTool: PluginContext.Tool) {
         self.name = pluginContextTool.name
-        self.url = URL(filePath: pluginContextTool.path.string, directoryHint: .notDirectory)
+        self.url = URL(fileURLWithPath: pluginContextTool.path.string, isDirectory: false)
     }
 }
 
@@ -277,7 +277,7 @@ private func runProgram(
 ) throws {
     // If the command is longer than approx. one line, format it neatly
     // on multiple lines for logging.
-    let fullCommand = "\(executable.path(percentEncoded: false)) \(arguments.joined(separator: " "))"
+    let fullCommand = "\(executable.path) \(arguments.joined(separator: " "))"
     let logMessage = if fullCommand.count < 70 {
         fullCommand
     } else {
