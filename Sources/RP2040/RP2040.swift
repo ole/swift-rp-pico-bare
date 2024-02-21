@@ -113,8 +113,6 @@ public func gpioGet(pin: Int) -> Bool {
     return isOn
 }
 
-// bool gpio_get(uint gpio);
-
 public func gpioSet(pin: Int, high: Bool) {
     let mask: UInt32 = 1 << pin
     if high {
