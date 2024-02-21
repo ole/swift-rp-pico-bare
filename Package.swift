@@ -52,7 +52,6 @@ let package = Package(
             name: "RP2040Boot2",
             exclude: [
                 "linker-script",
-                "pad-checksum",
             ],
             publicHeadersPath: "",
             cSettings: [
@@ -73,7 +72,11 @@ let package = Package(
                     verb: "link",
                     description: "Links the final executable for the RP2040"
                 )
-            )
+            ),
+            dependencies: [
+                "RP2040Boot2Checksum",
+            ]
         ),
+        .executableTarget(name: "RP2040Boot2Checksum"),
     ]
 )

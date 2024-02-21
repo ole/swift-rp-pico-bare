@@ -78,6 +78,7 @@ struct LinkCommand: CommandPlugin {
         Diagnostics.remark("\(Self.logPrefix) objcopy: \(objcopy.path)")
 
         // Build and postprocess boot2
+        let padChecksum = CommandLineTool(try context.tool(named: "RP2040Boot2Checksum"))
         let boot2Product = try context.package.products(named: ["RP2040Boot2"])[0]
         let boot2Outputs = try buildAndPostprocessBoot2(
             product: boot2Product,
@@ -86,7 +87,8 @@ struct LinkCommand: CommandPlugin {
             intermediatesDir: intermediatesDir,
             clang: clang,
             commonCFlags: commonClangArgs,
-            objcopy: objcopy
+            objcopy: objcopy,
+            padChecksum: padChecksum
         )
 
         // Build the app
@@ -188,7 +190,8 @@ private func buildAndPostprocessBoot2(
     intermediatesDir: Path,
     clang: CommandLineTool,
     commonCFlags: [String],
-    objcopy: CommandLineTool
+    objcopy: CommandLineTool,
+    padChecksum: CommandLineTool
 ) throws -> [Path] {
     Diagnostics.remark("\(LinkCommand.logPrefix) Building second-stage bootloader (boot2)")
     Diagnostics.remark("\(LinkCommand.logPrefix) Building product '\(product.name)' with config '\(buildParameters.configuration.rawValue)'")
@@ -240,14 +243,11 @@ private func buildAndPostprocessBoot2(
 
     // 3. Calculate checksum and write into assembly file
     let checksummedAsm = intermediatesDir.appending("bs2_default_padded_checksummed.s")
-    let padChecksumScript = URL(filePath: boot2Target.directory.string, directoryHint: .isDirectory)
-        .appending(components: "pad-checksum", "pad_checksum")
     let padChecksumArgs = [
-        "-s", "0xffffffff",
         preChecksumBin.string,
         checksummedAsm.string
     ]
-    try runProgram(padChecksumScript, arguments: padChecksumArgs)
+    try runProgram(padChecksum.url, arguments: padChecksumArgs)
 
     // 4. Assemble checksummed boot2 loader
     let checksummedObj = intermediatesDir.appending("bs2_default_padded_checksummed.s.o")
