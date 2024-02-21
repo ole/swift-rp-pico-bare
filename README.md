@@ -23,7 +23,7 @@ Build a Swift executable for the Raspberry Pi Pico without the Pico C SDK. Teste
 
 ## Building with SwiftPM
 
-Only works on Linux at this time.
+On Linux:
 
 ```sh
 # Build only
@@ -32,6 +32,17 @@ swift build --triple armv6m-none-none-eabi
 
 # Build and link final executable App.elf
 swift package --triple armv6m-none-none-eabi link
+```
+
+On macOS:
+
+```sh
+# Download a version of LLVM that includes ld.lld, the linker that Swift wants to use for ELF files.
+brew install llvm
+# Place `ld.lld` in your PATH:
+ln -s /opt/homebrew/opt/llvm/bin/ld.lld ~/bin/ld.lld
+# Build and link 
+swift package --triple armv6m-none-none-eabi --toolchain /Library/Developer/Toolchains/swift-latest.xctoolchain/ link --objcopy=/opt/homebrew/opt/llvm/bin/llvm-objcopy
 ```
 
 ## Building with make
