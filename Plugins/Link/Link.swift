@@ -205,7 +205,6 @@ private func buildAndPostprocessBoot2(
         Diagnostics.error("\(LinkCommand.logPrefix) Building product '\(product.name)' failed")
         throw BuildError()
     }
-    let staticLib = buildResult.builtArtifacts[0]
 
     // Postprocessing
     Diagnostics.remark("\(LinkCommand.logPrefix) Calculating boot2 checksum and embedding it into the binary")
