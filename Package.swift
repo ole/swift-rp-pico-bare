@@ -12,13 +12,13 @@ let package = Package(
     targets: [
         .target(
             name: "App",
-            dependencies: ["RP2040", "RP2040Support"],
             cSettings: [
                 .unsafeFlags([
                     "-mfloat-abi=soft",
                     "-march=armv6m",
                 ]),
             ],
+            dependencies: ["RP2040"],
             swiftSettings: [
                 .enableExperimentalFeature("Embedded"),
                 .unsafeFlags([
@@ -29,13 +29,13 @@ let package = Package(
         ),
         .target(
             name: "RP2040",
-            dependencies: ["MMIOVolatile"],
             cSettings: [
                 .unsafeFlags([
                     "-mfloat-abi=soft",
                     "-march=armv6m",
                 ]),
             ],
+            dependencies: ["MMIOVolatile", "RP2040Support"],
             swiftSettings: [
                 .enableExperimentalFeature("Embedded"),
                 .unsafeFlags([
