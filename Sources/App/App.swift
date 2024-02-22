@@ -8,28 +8,11 @@ struct App {
         gpioSetDirection(pin: onboardLED, out: true)
         gpioSet(pin: onboardLED, high: false)
 
-        let externalLED = 17
-        gpioInit(pin: externalLED)
-        gpioSetDirection(pin: externalLED, out: true)
-        gpioSet(pin: externalLED, high: false)
-
-        let button = 16
-        gpioInit(pin: button)
-        gpioSetDirection(pin: button, out: false)
-        gpioPullUp(pin: button)
-
         while true {
-            // Blink
             gpioSet(pin: onboardLED, high: true)
-            delayByCounting(to: 30_000)
-
-            // LED follows button press
-            gpioSet(pin: externalLED, high: !gpioGet(pin: button))
-
+            delayByCounting(to: 120_000)
             gpioSet(pin: onboardLED, high: false)
             delayByCounting(to: 120_000)
-
-            gpioSet(pin: externalLED, high: !gpioGet(pin: button))
         }
     }
 }
