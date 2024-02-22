@@ -16,7 +16,7 @@
 //                4-byte checksum. Therefore code size cannot exceed 252 bytes.
 // ----------------------------------------------------------------------------
 
-#include "asm_helper.S"
+#include "asm_helper.s.h"
 #include "addressmap.h"
 #include "hardware_regs-ssi.h"
 
@@ -99,7 +99,7 @@ regular_func _stage2_boot
 // and the data will be returned to the bus.
 
 // Pull in standard exit routine
-#include "exit_from_boot2.S"
+#include "exit_from_boot2.s.h"
 
 .global literals
 literals:

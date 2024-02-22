@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "asm_helper.S"
+#include "asm_helper.s.h"
 
 pico_default_asm_setup
 
