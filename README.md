@@ -2,6 +2,8 @@
 
 Build a Swift executable for the Raspberry Pi Pico without the Pico C SDK. Tested on macOS 14 and Linux (Ubuntu 22.04).
 
+Swift forum discussion thread: <https://forums.swift.org/t/embedded-swift-on-the-raspberry-pi-pico-rp2040-without-the-pico-sdk/69338>
+
 ## Installation
 
 1. Download and install a current [nightly Swift toolchain](https://www.swift.org/download/#snapshots) ("Trunk Development (main)"). Tested with 2024-02-15, newer versions will probably work too.
