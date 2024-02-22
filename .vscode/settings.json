@@ -1,0 +1,5 @@
+{
+  "swift.path": "/Library/Developer/Toolchains/swift-latest.xctoolchain/usr/bin",
+  "lldb.library": "/Library/Developer/Toolchains/swift-latest.xctoolchain/System/Library/PrivateFrameworks/LLDB.framework/Versions/A/LLDB",
+  "lldb.launch.expressions": "native"
+}

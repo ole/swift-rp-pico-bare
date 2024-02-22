@@ -1,16 +1,27 @@
 {
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // Docs: https://code.visualstudio.com/docs/editor/debugging#_launch-configurations
+  "version": "0.2.0",
   "configurations": [
     {
-      "type": "lldb",
+      "preLaunchTask": "Build (release)",
+      "type": "probe-rs-debug",
       "request": "launch",
-      "sourceLanguages": [
-        "swift"
-      ],
-      "args": [],
-      "cwd": "${workspaceFolder:BootstrappedSwift}",
-      "name": "Debug Executable",
-      "program": "${workspaceFolder:BootstrappedSwift}/.build/debug/Executable",
-      "preLaunchTask": "swift: Build Debug Executable"
+      "name": "Flash & run (release)",
+      "cwd": "${workspaceFolder}",
+      "chip": "RP2040",
+      "connectUnderReset": false,
+      "flashingConfig": {
+        "flashingEnabled": true,
+        "haltAfterReset": false
+      },
+      "coreConfigs": [
+        {
+          "coreIndex": 0,
+          "programBinary": "./.build/plugins/Link/outputs/App.elf"
+        }
+      ]
     },
     {
       "type": "lldb",
@@ -20,9 +31,21 @@
       ],
       "args": [],
       "cwd": "${workspaceFolder:BootstrappedSwift}",
-      "name": "Release Executable",
-      "program": "${workspaceFolder:BootstrappedSwift}/.build/release/Executable",
-      "preLaunchTask": "swift: Build Release Executable"
+      "name": "Debug RP2040Boot2Checksum",
+      "program": "${workspaceFolder:BootstrappedSwift}/.build/debug/RP2040Boot2Checksum",
+      "preLaunchTask": "swift: Build Debug RP2040Boot2Checksum"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "sourceLanguages": [
+        "swift"
+      ],
+      "args": [],
+      "cwd": "${workspaceFolder:BootstrappedSwift}",
+      "name": "Release RP2040Boot2Checksum",
+      "program": "${workspaceFolder:BootstrappedSwift}/.build/release/RP2040Boot2Checksum",
+      "preLaunchTask": "swift: Build Release RP2040Boot2Checksum"
     }
   ]
 }
