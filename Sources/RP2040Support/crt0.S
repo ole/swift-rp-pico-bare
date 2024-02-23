@@ -229,7 +229,6 @@ _entry_point:
 // Reset handler:
 // - initialises .data
 // - clears .bss
-// - calls runtime_init
 // - calls main
 // - calls exit (which should eventually hang the processor via _exit)
 
@@ -272,8 +271,6 @@ bss_fill_test:
 platform_entry: // symbol for stack traces
     // Use 32-bit jumps, in case these symbols are moved out of branch range
     // (e.g. if main is in SRAM and crt0 in flash)
-    ldr r1, =runtime_init
-    blx r1
     ldr r1, =main
     blx r1
     ldr r1, =exit
@@ -317,16 +314,6 @@ data_cpy_table:
 .word __scratch_y_end__
 
 .word 0 // null terminator
-
-// ----------------------------------------------------------------------------
-// Provide safe defaults for _exit and runtime_init
-// Full implementations usually provided by platform.c
-
-.weak runtime_init
-.type runtime_init,%function
-.thumb_func
-runtime_init:
-    bx lr
 
 // ----------------------------------------------------------------------------
 // If core 1 somehow gets into crt0 due to a spectacular VTOR mishap, we need to
