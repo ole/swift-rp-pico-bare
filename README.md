@@ -83,4 +83,4 @@ elf2uf2-rs .build/plugins/Link/outputs/App.elf
 
 You should see the Pico’s onboard LED blinking.
 
-Note: I have observed that after some builds the LED is blinking very fast or appears to be on the entire time. Anecdotally, this seems to happen especially on the first deploy to a Pico, although I can’t explain why. If this happens to you, try passing larger numbers in the calls to `delayByCounting` in `App.swift`. Our current method of faking a timer by counting is very primitive because we have only implemented the bare minimum of functionality. This will improve as we implement a proper Timer API.
+Note: If the LED is blinking very fast (to the point where it appears to be permanently on), try disconnecting and reconnecting the Pico from power. After reconnecting, you should observe the blinking to be approximately 20× slower. This is caused by a bug in our after-boot init code. See [issue 7](https://github.com/ole/swift-rp-pico-bare/issues/7) for details.
