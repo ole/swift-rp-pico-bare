@@ -3,6 +3,10 @@ import RP2040
 @main
 struct App {
     static func main() {
+        // The program must call runtimeInit before using any peripherals.
+        // This should usually be the first thing you call in main().
+        runtimeInit()
+
         let onboardLED = 25
         gpioInit(pin: onboardLED)
         gpioSetDirection(pin: onboardLED, out: true)
@@ -17,11 +21,21 @@ struct App {
     }
 }
 
+/// crt0.s calls this function when `main()` returns.
+///
+/// Most `main()` functions start an infinite loop and never return, in which
+/// case `exit()` isn't needed. But it exists just in case `main()` does return.
+///
+/// The usual implementation is to start an infinite loop, as there is no OS to
+/// return to.
+///
+/// - TODO: Move this into the RP2040 module if possible.
 @_cdecl("exit")
 func exit(_ status: CInt) {
     _exit(status)
 }
 
+/// - TODO: Move this into the RP2040 module if possible.
 @_cdecl("_exit")
 func _exit(_ status: CInt) {
     while true {
