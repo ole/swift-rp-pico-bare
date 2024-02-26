@@ -22,30 +22,6 @@
           "programBinary": "./.build/plugins/Link/outputs/App.elf"
         }
       ]
-    },
-    {
-      "type": "lldb",
-      "request": "launch",
-      "sourceLanguages": [
-        "swift"
-      ],
-      "args": [],
-      "cwd": "${workspaceFolder:BootstrappedSwift}",
-      "name": "Debug RP2040Boot2Checksum",
-      "program": "${workspaceFolder:BootstrappedSwift}/.build/debug/RP2040Boot2Checksum",
-      "preLaunchTask": "swift: Build Debug RP2040Boot2Checksum"
-    },
-    {
-      "type": "lldb",
-      "request": "launch",
-      "sourceLanguages": [
-        "swift"
-      ],
-      "args": [],
-      "cwd": "${workspaceFolder:BootstrappedSwift}",
-      "name": "Release RP2040Boot2Checksum",
-      "program": "${workspaceFolder:BootstrappedSwift}/.build/release/RP2040Boot2Checksum",
-      "preLaunchTask": "swift: Build Release RP2040Boot2Checksum"
     }
   ]
 }
