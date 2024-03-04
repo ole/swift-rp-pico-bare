@@ -5,6 +5,25 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "preLaunchTask": "Build (debug)",
+      "type": "probe-rs-debug",
+      "request": "launch",
+      "name": "Flash & run (debug)",
+      "cwd": "${workspaceFolder}",
+      "chip": "RP2040",
+      "connectUnderReset": false,
+      "flashingConfig": {
+        "flashingEnabled": true,
+        "haltAfterReset": false
+      },
+      "coreConfigs": [
+        {
+          "coreIndex": 0,
+          "programBinary": "./.build/plugins/Link/outputs/App.elf"
+        }
+      ]
+    },
+    {
       "preLaunchTask": "Build (release)",
       "type": "probe-rs-debug",
       "request": "launch",

@@ -24,10 +24,14 @@ struct LinkCommand: CommandPlugin {
                   swift package --triple armv6m-none-none-eabi link [options]
 
                 OPTIONS:
-                  --help        Display this help message.
-                  --objcopy     Path to LLVM's objcopy tool, e.g. llvm-objcopy.
-                                If omitted, we look for a tool named objcopy in
-                                your PATH.
+                  --help    Display this help message.
+                  --configuration <debug|release>
+                            Build with the specified configuration.
+                            Default: release.
+                  --objcopy <path-to-llvm-objcopy-executable>
+                            Path to LLVM's objcopy tool, e.g. llvm-objcopy.
+                            If omitted, we look for a tool named objcopy in
+                            your PATH.
                 """
             )
             return
@@ -42,8 +46,10 @@ struct LinkCommand: CommandPlugin {
         )
 
         // TODO: Can we use the default build parameters the user is specifying on the command line (`-c release`, `--verbose`)?
+        let buildConfig = arguments.buildConfig ?? .release
+        Diagnostics.remark("\(Self.logPrefix) Using configuration: \(buildConfig.rawValue)")
         let buildParameters = PackageManager.BuildParameters(
-            configuration: .release,
+            configuration: buildConfig,
             logging: .concise
         )
 
@@ -140,23 +146,45 @@ struct LinkCommand: CommandPlugin {
 
 struct CLIArguments {
     var shouldShowHelp: Bool
-    var objcopyPath: Optional<String> = nil
+    var buildConfig: Optional<PackagePlugin.PackageManager.BuildConfiguration>
+    var objcopyPath: Optional<String>
 }
 
 private func parseArguments(_ arguments: [String]) throws -> CLIArguments {
     var argumentExtractor = ArgumentExtractor(arguments)
     let shouldShowHelp = argumentExtractor.extractFlag(named: "help") > 0
+    
+    let buildConfigArgs = argumentExtractor.extractOption(named: "configuration")
+    if buildConfigArgs.count > 1 {
+        Diagnostics.error("\(LinkCommand.logPrefix) Argument --configuration specified multiple times")
+        throw BuildError()
+    }
+    let buildConfig: PackagePlugin.PackageManager.BuildConfiguration?
+    switch buildConfigArgs.first {
+        case nil: buildConfig = nil
+        case let buildConfigString?:
+            if let validConfig = PackagePlugin.PackageManager.BuildConfiguration(rawValue: buildConfigString) {
+                buildConfig = validConfig
+            } else {
+                Diagnostics.error("\(LinkCommand.logPrefix) Invalid configuration '\(buildConfigString)' (expected 'release' or 'debug')")
+                throw BuildError()
+            }
+    }
+    
     let objcopyArgs = argumentExtractor.extractOption(named: "objcopy")
     if objcopyArgs.count > 1 {
         Diagnostics.error("\(LinkCommand.logPrefix) Argument --objcopy specified multiple times")
         throw BuildError()
     }
+    
     if !argumentExtractor.remainingArguments.isEmpty {
         Diagnostics.error("\(LinkCommand.logPrefix) Unrecognized arguments: \(argumentExtractor.remainingArguments.joined(separator: " "))")
         throw BuildError()
     }
+    
     return CLIArguments(
         shouldShowHelp: shouldShowHelp,
+        buildConfig: buildConfig,
         objcopyPath: objcopyArgs.first
     )
 }
