@@ -48,7 +48,7 @@ The normal SwiftPM commands `swift build` and `swift run` won’t work. You need
 swift package --triple armv6m-none-none-eabi \
     --toolchain /Library/Developer/Toolchains/swift-latest.xctoolchain/ \
     link \
-    --objcopy=/opt/homebrew/opt/llvm/bin/llvm-objcopy
+    --objcopy /opt/homebrew/opt/llvm/bin/llvm-objcopy
 ```
 
 Adjust the path to the Swift toolchain you downloaded accordingly. It should be either `/Library/Developer/…` or `~/Library/Developer/…`. Note that we’re passing in the path to `llvm-objcopy` from the Homebrew LLVM install.
