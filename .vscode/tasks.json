@@ -2,6 +2,25 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
+			"label": "Build (debug)",
+			"type": "swift",
+			"args": [
+				"package",
+				"--triple",
+				"armv6m-none-none-eabi",
+				"--toolchain",
+				"/Library/Developer/Toolchains/swift-latest.xctoolchain/",
+				"link",
+				"--configuration", "debug",
+				"--objcopy", "/opt/homebrew/opt/llvm/bin/llvm-objcopy"
+			],
+			"disableTaskQueue": true,
+			"problemMatcher": [
+				"$swiftc"
+			],
+			"group": "build",
+		},
+		{
 			"label": "Build (release)",
 			"type": "swift",
 			"args": [
@@ -11,7 +30,8 @@
 				"--toolchain",
 				"/Library/Developer/Toolchains/swift-latest.xctoolchain/",
 				"link",
-				"--objcopy=/opt/homebrew/opt/llvm/bin/llvm-objcopy"
+				"--configuration", "release",
+				"--objcopy", "/opt/homebrew/opt/llvm/bin/llvm-objcopy"
 			],
 			"disableTaskQueue": true,
 			"problemMatcher": [
