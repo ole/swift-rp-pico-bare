@@ -6,11 +6,11 @@ Swift forum discussion thread: <https://forums.swift.org/t/embedded-swift-on-the
 
 ## Installation
 
-1. Download and install a current [nightly Swift toolchain](https://www.swift.org/download/#snapshots) ("Trunk Development (main)"). Tested with 2024-02-15, newer versions will probably work too.
+### On macOS
 
-    On macOS, the download is a `.pkg` installer that will install the toolchain into `/Library/Developer/Toolchains` or `~/Library/Developer/Toolchains`. On Linux, you can probably use [swiftly](https://swift-server.github.io/swiftly/) or [swiftenv](https://swiftenv.fuller.li/), or use one of the official Swift Docker images (I tested with `swiftlang/swift:nightly-jammy`).
+1. Download and install a current [nightly Swift toolchain](https://www.swift.org/download/#snapshots) ("Trunk Development (main)"). Tested with 2024-02-15, newer versions will probably work too. The download is a `.pkg` installer that will install the toolchain into `/Library/Developer/Toolchains` or `~/Library/Developer/Toolchains`. 
 
-2. If you're on macOS, install LLVM using Homebrew:
+2. Install LLVM using Homebrew:
 
     ```sh
     brew install llvm
@@ -18,7 +18,7 @@ Swift forum discussion thread: <https://forums.swift.org/t/embedded-swift-on-the
 
     Note: This is necessary even though Xcode already comes with LLVM. We need (a) a linker that can produce `.elf` files, and (b) the tool `llvm-objcopy`. Xcode currently doesn’t provide these. Don’t worry, installing LLVM from Homebrew, won’t mess up your Xcode setup; Homebrew won’t place these tools into your `PATH`.
 
-3. If you're on macOS, put the `ld.lld` executable (this is the linker from LLVM you just installed) in your `PATH`. SwiftPM will be looking for this program and it needs to be able to find it. I have a `~/bin` directory in my home directory, which is in my `PATH`, so I put a symlink to `ld.lld` in that folder:
+3. Put the `ld.lld` executable (this is the linker from LLVM you just installed) in your `PATH`. SwiftPM will be looking for this program and it needs to be able to find it. I have a `~/bin` directory that's already in my `PATH`, so I put a symlink to `ld.lld` in that folder:
 
     ```sh
     ln -s /opt/homebrew/opt/llvm/bin/ld.lld ~/bin/ld.lld
@@ -28,7 +28,24 @@ Swift forum discussion thread: <https://forums.swift.org/t/embedded-swift-on-the
     
     Alternatively, you could put this symlink in `/usr/local/bin` or some other directory in your `PATH`. Note: I advise against putting the `llvm/bin` directory itself in your `PATH` as Xcode and other build tools might get confused which one to use, but I haven’t tested this.
 
-4. Install [`elf2uf2-rs`](https://crates.io/crates/elf2uf2-rs) and [`probe-rs`](https://probe.rs/) (requires a working Rust installation; see <https://www.rust-lang.org/tools/install> for guidance):
+5. Install [`elf2uf2-rs`](https://crates.io/crates/elf2uf2-rs) and [`probe-rs`](https://probe.rs/) (requires a working Rust installation; see <https://www.rust-lang.org/tools/install> for guidance):
+
+      ```sh
+      cargo install elf2uf2-rs --locked
+      cargo install probe-rs --features cli
+      ```
+
+      We’ll use these tools to create the UF2 file for the Pico and/or flash the ELF file to the Pico. If you have other tools to do these jobs, feel free to use them. These are not required for the actual build process.
+
+### On Linux
+
+1. Install a current [nightly Swift toolchain](https://www.swift.org/download/#snapshots) ("Trunk Development (main)"). You can probably use [swiftly](https://swift-server.github.io/swiftly/) or [swiftenv](https://swiftenv.fuller.li/), or use one of the official Swift Docker images (I tested with `swiftlang/swift:nightly-jammy`).
+
+2. Install the `objcopy` tool if you don't have it already. You probably already have this installed, type `objcopy --version` to verify. If not, install it with your distribution's package manager.
+
+    We use `objcopy` in one of the build steps for the second-stage bootloader to convert a linked `.elf` file into the raw binary machine code representation (to compute the checksum for the bootloader).
+
+3. Install [`elf2uf2-rs`](https://crates.io/crates/elf2uf2-rs) and [`probe-rs`](https://probe.rs/) (requires a working Rust installation; see <https://www.rust-lang.org/tools/install> for guidance):
 
       ```sh
       cargo install elf2uf2-rs --locked
